@@ -1,42 +1,35 @@
 import copy
 import os
 import sys
-import time
 import numpy as np
 import ruamel.yaml as yaml
-import torch
-from stable_baselines3.common.save_util import load_from_zip_file
+from loguru import logger
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 repo_path = os.path.join(script_path, "..")
 sys.path.append(script_path)
 sys.path.insert(0, repo_path)
 
-from scripts.arguments import parse_params
+from scripts.arguments import parse_params, handle_policy_args
 from envs.long_open_lock import LongOpenLockRandPointFlowEnv
 from path import Path
 from stable_baselines3.common.utils import set_random_seed
-
-from solutions.policies import TD3PolicyForLongOpenLockPointFlowEnv
 from utils.common import get_time, get_average_params
 from loguru import logger
 
+from scripts.open_lock_simple_agent import OpenLockSimpleAgent
+
+import matplotlib.pyplot as plt
+
 EVAL_CFG_FILE = os.path.join(repo_path, "configs/evaluation/open_lock_evaluation.yaml")
-KEY_NUM = 4
-REPEAT_NUM = 2
+KEY_NUM = 1
+REPEAT_NUM = 1
 
-
-def evaluate_policy(model, key, render_rgb):
+def demo_generation(model):
     exp_start_time = get_time()
-    exp_name = f"open_lock_{exp_start_time}"
-    log_dir = Path(os.path.join(repo_path, f"eval_log/{exp_name}"))
-    log_dir.makedirs_p()
 
     logger.remove()
-    logger.add(log_dir / f"{exp_name}.log")
     logger.add(sys.stderr, format="{time:YYYY-MM-DD HH:mm:ss} {level} {message}", level="INFO")
-
-    logger.info(f"#KEY: {key}")
 
     with open(EVAL_CFG_FILE, "r") as f:
         cfg = yaml.YAML(typ='safe', pure=True).load(f)
@@ -52,6 +45,7 @@ def evaluate_policy(model, key, render_rgb):
 
     if "max_action" in cfg["env"].keys():
         cfg["env"]["max_action"] = np.array(cfg["env"]["max_action"])
+        model.set_max_action(cfg["env"]["max_action"])
 
     specified_env_args = copy.deepcopy(cfg["env"])
 
@@ -61,7 +55,6 @@ def evaluate_policy(model, key, render_rgb):
             "params_upper_bound": average_params,
         }
     )
-    specified_env_args["render_rgb"] = render_rgb
 
     # create evaluation environment
     env = LongOpenLockRandPointFlowEnv(**specified_env_args)
@@ -80,12 +73,26 @@ def evaluate_policy(model, key, render_rgb):
                 while not d:
                     # Take deterministic actions at test time (noise_scale=0)
                     ep_len += 1
-                    for obs_k, obs_v in o.items():
-                        o[obs_k] = torch.from_numpy(obs_v)
-                    action = model(o)
-                    action = action.cpu().detach().numpy().flatten()
+                    action = model.predict(o)
                     logger.info(f"Step {ep_len} Action: {action}")
                     o, r, terminated, truncated, info = env.step(action)
+                    # Store sensor output and action as npz. Do not need the original marker positions
+                    # lr_marker_flow = o["marker_flow"]
+                    # l_marker_flow, r_marker_flow = lr_marker_flow[0], lr_marker_flow[1]
+                    # plt.figure(1, (20, 9))
+                    # ax = plt.subplot(1, 2, 1)
+                    # ax.scatter(l_marker_flow[0, :, 0], l_marker_flow[0, :, 1], c="blue")
+                    # ax.scatter(l_marker_flow[1, :, 0], l_marker_flow[1, :, 1], c="red")
+                    # plt.xlim(15, 315)
+                    # plt.ylim(15, 235)
+                    # ax.invert_yaxis()
+                    # ax = plt.subplot(1, 2, 2)
+                    # ax.scatter(r_marker_flow[0, :, 0], r_marker_flow[0, :, 1], c="blue")
+                    # ax.scatter(r_marker_flow[1, :, 0], r_marker_flow[1, :, 1], c="red")
+                    # plt.xlim(15, 315)
+                    # plt.ylim(15, 235)
+                    # ax.invert_yaxis()
+
                     d = terminated or truncated
                     ep_ret += r
                 if info["is_success"]:
@@ -106,22 +113,8 @@ def evaluate_policy(model, key, render_rgb):
         logger.info(f"#AVG_STEP: NA")
 
 
+
 if __name__ == "__main__":
-    import argparse
+    model = OpenLockSimpleAgent(0.7, 0.7, 0.5)
+    demo_generation(model)
 
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--key", type=str, required=True, help="use the key sent to you")
-    parser.add_argument("--render_rgb", action="store_true")
-    args = parser.parse_args()
-    key = args.key
-    # replace the model with your own policy
-
-    # policy_file = "../pretrain_weight/pretrain_openlock/best_model.zip"
-    policy_file = "./pretrain_weight/pretrain_openlock/best_model.zip"
-    data, params, _ = load_from_zip_file(policy_file)
-    model = TD3PolicyForLongOpenLockPointFlowEnv(observation_space=data["observation_space"],
-                                    action_space=data["action_space"],
-                                    lr_schedule=data["lr_schedule"],
-                                    **data["policy_kwargs"],)
-    model.load_state_dict(params["policy"])
-    evaluate_policy(model, key, args.render_rgb)

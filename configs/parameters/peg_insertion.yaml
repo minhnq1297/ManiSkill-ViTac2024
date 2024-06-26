@@ -83,7 +83,7 @@ train:
   checkpoint_every: 2000
   eval_freq: 2000
   n_eval: 50
-  parallel: 2
+  parallel: 1
   seed: 0
   device: "cuda"
   gpu: 0

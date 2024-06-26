@@ -698,6 +698,8 @@ class ContinuousInsertionSimEnv(gym.Env):
             ).astype(np.float32),
             "gt_offset": np.array(self.current_offset_of_current_episode, dtype=np.float32),
         }
+        peg_transform = self.peg_abd.get_transformation_matrix().cpu().numpy().copy()
+        obs_dict["peg_transform"] = peg_transform
 
         return obs_dict
 

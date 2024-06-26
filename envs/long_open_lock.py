@@ -9,12 +9,12 @@ from matplotlib import pyplot as plt
 from path import Path
 from sapienipc.ipc_utils.user_utils import ipc_update_render_all
 
-from envs.common_params import CommonParams
-
 script_path = os.path.dirname(os.path.realpath(__file__))
 repo_path = os.path.join(script_path, "..")
 sys.path.append(script_path)
 sys.path.append(repo_path)
+
+from envs.common_params import CommonParams
 import time
 from typing import List, Tuple
 
@@ -727,6 +727,11 @@ class LongOpenLockRandPointFlowEnv(LongOpenLockSimEnv):
         obs["key2"] = np.array(
             [key2_pts.mean(0)[0] - info["lock2_pts"].mean(0)[0], key2_pts.mean(0)[1], key2_pts.mean(0)[2] - 0.03],
             dtype=np.float32) * 200.0
+
+        obs["key1_pts"] = key1_pts
+        obs["key2_pts"] = key2_pts
+        obs["lock1_pts"] = info["lock1_pts"]
+        obs["lock2_pts"] = info["lock2_pts"]
 
         if self.render_rgb:
             obs["rgb_images"] = np.stack(
