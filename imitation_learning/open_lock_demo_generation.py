@@ -17,17 +17,16 @@ from stable_baselines3.common.utils import set_random_seed
 from utils.common import get_time, get_average_params
 from loguru import logger
 
-from scripts.open_lock_simple_agent import OpenLockSimpleAgent
+from imitation_learning.open_lock_simple_agent import OpenLockSimpleAgent
+from imitation_learning.data_utils import *
 
 import matplotlib.pyplot as plt
 
-EVAL_CFG_FILE = os.path.join(repo_path, "configs/evaluation/open_lock_evaluation.yaml")
-KEY_NUM = 1
+EVAL_CFG_FILE = os.path.join(repo_path, "configs/parameters/long_open_lock_demo_gen.yaml")
+KEY_NUM = 2
 REPEAT_NUM = 1
 
 def demo_generation(model):
-    exp_start_time = get_time()
-
     logger.remove()
     logger.add(sys.stderr, format="{time:YYYY-MM-DD HH:mm:ss} {level} {message}", level="INFO")
 
@@ -60,52 +59,75 @@ def demo_generation(model):
     env = LongOpenLockRandPointFlowEnv(**specified_env_args)
     set_random_seed(0)
 
-    offset_list = [[i * 1.0 / 2, 0, 0] for i in range(20)]
-    test_num = len(offset_list)
-    test_result = []
 
+    max_key_x_offset = cfg["env"]["key_x_max_offset"]
+    max_key_y_offset = cfg["env"]["key_y_max_offset"]
+    max_key_z_offset = cfg["env"]["key_z_max_offset"]
+    num_of_offsets = 3
+    max_key_offset = np.array([max_key_x_offset, max_key_y_offset, max_key_z_offset])
+    offset_list = max_key_offset * np.random.rand(num_of_offsets, 3)
+    offset_list = offset_list.tolist()
+
+    episode_num = len(offset_list)
+    collect_result = []
+
+    episode_demo_data_list = []
     for i in range(KEY_NUM):
         for r in range(REPEAT_NUM):
-            for k in range(test_num):
-                logger.opt(colors=True).info(f"<blue>#### Test No. {len(test_result) + 1} ####</blue>")
+            for k in range(episode_num):
+                logger.opt(colors=True).info(f"<blue>#### Run No. {len(collect_result) + 1} ####</blue>")
                 o, _ = env.reset(offset_list[k], key_idx=i)
+
+                l_marker_list = []
+                r_marker_list = []
+                action_list = []
+
+                marker_pos = o["marker_flow"]
+                l_marker_pos, r_marker_pos = marker_pos[0], marker_pos[1]
+                l_marker_list.append(stack_markers(l_marker_pos))
+                r_marker_list.append(stack_markers(r_marker_pos))
+
                 d, ep_ret, ep_len = False, 0, 0
                 while not d:
-                    # Take deterministic actions at test time (noise_scale=0)
                     ep_len += 1
                     action = model.predict(o)
                     logger.info(f"Step {ep_len} Action: {action}")
                     o, r, terminated, truncated, info = env.step(action)
-                    # Store sensor output and action as npz. Do not need the original marker positions
-                    # lr_marker_flow = o["marker_flow"]
-                    # l_marker_flow, r_marker_flow = lr_marker_flow[0], lr_marker_flow[1]
-                    # plt.figure(1, (20, 9))
-                    # ax = plt.subplot(1, 2, 1)
-                    # ax.scatter(l_marker_flow[0, :, 0], l_marker_flow[0, :, 1], c="blue")
-                    # ax.scatter(l_marker_flow[1, :, 0], l_marker_flow[1, :, 1], c="red")
-                    # plt.xlim(15, 315)
-                    # plt.ylim(15, 235)
-                    # ax.invert_yaxis()
-                    # ax = plt.subplot(1, 2, 2)
-                    # ax.scatter(r_marker_flow[0, :, 0], r_marker_flow[0, :, 1], c="blue")
-                    # ax.scatter(r_marker_flow[1, :, 0], r_marker_flow[1, :, 1], c="red")
-                    # plt.xlim(15, 315)
-                    # plt.ylim(15, 235)
-                    # ax.invert_yaxis()
-
                     d = terminated or truncated
                     ep_ret += r
+
+                    marker_pos_sub_steps = o["marker_flow_sub_steps"]
+                    for marker_pos_sub_step in marker_pos_sub_steps:
+                        action_list.append(action)
+                        l_marker_pos_sub_step, r_marker_pos_sub_step = marker_pos_sub_step[0], marker_pos_sub_step[1]
+                        l_marker_list.append(stack_markers(l_marker_pos_sub_step))
+                        r_marker_list.append(stack_markers(r_marker_pos_sub_step))
+
+                    # marker_pos = o["marker_flow"]
+                    # l_marker_pos, r_marker_pos = marker_pos[0], marker_pos[1]
+                    # l_marker_list.append(stack_markers(l_marker_pos))
+                    # r_marker_list.append(stack_markers(r_marker_pos))
+                    # action_list.append(action)
+
                 if info["is_success"]:
-                    test_result.append([True, ep_len])
+                    collect_result.append([True, ep_len])
                     logger.opt(colors=True).info(f"<green>RESULT: SUCCESS</green>")
+                    episode_demo_data = EpisodeDemoData(
+                        np.array(l_marker_list),
+                        np.array(r_marker_list),
+                        np.array(action_list)
+                    )
+                    episode_demo_data_list.append(episode_demo_data)
                 else:
-                    test_result.append([False, ep_len])
+                    collect_result.append([False, ep_len])
                     logger.opt(colors=True).info(f"<d>RESULT: FAIL</d>")
 
+    store_data(episode_demo_data_list, "open_lock_demo")
+
     env.close()
-    success_rate = np.sum(np.array([int(v[0]) for v in test_result])) / (test_num * KEY_NUM * REPEAT_NUM)
+    success_rate = np.sum(np.array([int(v[0]) for v in collect_result])) / (episode_num * KEY_NUM * REPEAT_NUM)
     if success_rate > 0:
-        avg_steps = np.mean(np.array([int(v[1]) if v[0] else 0 for v in test_result])) / success_rate
+        avg_steps = np.mean(np.array([int(v[1]) if v[0] else 0 for v in collect_result])) / success_rate
         logger.info(f"#SUCCESS_RATE: {success_rate*100.0:.2f}%")
         logger.info(f"#AVG_STEP: {avg_steps:.2f}")
     else:

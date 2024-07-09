@@ -523,6 +523,7 @@ class ContinuousInsertionSimEnv(gym.Env):
             v_y = y / self.params.sim_time_step / action_substeps
             v_theta = theta / self.params.sim_time_step / action_substeps
 
+            self.marker_flow_sub_steps = []
             for _ in range(action_substeps):
                 self.tactile_sensor_1.set_active_v_r(
                     [v_x, v_y, 0],
@@ -545,6 +546,12 @@ class ContinuousInsertionSimEnv(gym.Env):
                 sensor_grasp_center = (self.tactile_sensor_1.current_pos + self.tactile_sensor_2.current_pos) / 2
                 if (not state1) or (not state2):
                     self.error_too_large = True
+
+                sub_info = self.get_info()
+                sub_obs = self.get_obs(info=sub_info)
+                sub_marker_flow = sub_obs["marker_flow"]
+                self.marker_flow_sub_steps.append(sub_marker_flow)
+
                 if GUI:
                     self.scene.update_render()
                     ipc_update_render_all(self.scene)
@@ -627,6 +634,7 @@ class ContinuousInsertionSimEnv(gym.Env):
 
         info = self.get_info()
         obs = self.get_obs(info=info)
+        obs["marker_flow_sub_steps"] = self.marker_flow_sub_steps
         reward = self.get_reward(info=info, obs=obs)
         terminated = self.get_terminated(info=info, obs=obs)
         truncated = self.get_truncated(info=info, obs=obs)

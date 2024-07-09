@@ -34,11 +34,18 @@ class PegInsertionSimpleAgent():
         x_offset = peg_offset[0]
         y_offset = peg_offset[1]
         theta_offset = peg_rpy[2]
+
         theta_offset_rad = theta_offset * np.pi / 180.0
         delta_x = x_offset * np.cos(theta_offset_rad) + y_offset * np.sin(theta_offset_rad)
         delta_y = -x_offset * np.sin(theta_offset_rad) + y_offset * np.cos(theta_offset_rad)
-        a_x = (1 if x_offset < 0.3 else self.k_x) * (0 - delta_x) / self.max_x_action
-        a_y = (1 if y_offset < 0.3 else self.k_y) * (0 - delta_y) / self.max_y_action
-        a_theta = (1 if theta_offset < 1.0 else self.k_theta) * (0 - theta_offset) / self.max_theta_action
+
+        a_x = (1 if delta_x < 2.0 else self.k_x) * (0 - delta_x)
+        a_x = np.clip(a_x, -self.max_x_action, self.max_x_action) / self.max_x_action
+
+        a_y = (1 if delta_y < 2.0 else self.k_y) * (0 - delta_y)
+        a_y = np.clip(a_y, -self.max_y_action, self.max_y_action) / self.max_y_action
+
+        a_theta = (1 if theta_offset < 2.0 else self.k_theta) * (0 - theta_offset)
+        a_theta = np.clip(a_theta, -self.max_theta_action, self.max_theta_action) / self.max_theta_action
 
         return np.array([a_x, a_y, a_theta])
