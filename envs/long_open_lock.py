@@ -69,11 +69,13 @@ class LongOpenLockSimEnv(gym.Env):
             params_upper_bound=None,
             device: str = "cuda:0",
             no_render: bool = False,
+            generate_demo: bool = False,
             **kwargs
     ):
         super(LongOpenLockSimEnv, self).__init__()
 
         self.no_render = no_render
+        self.generate_demo = generate_demo
         self.index = None
         self.step_penalty = step_penalty
         self.final_reward = final_reward
@@ -454,7 +456,8 @@ class LongOpenLockSimEnv(gym.Env):
 
         info = self.get_info()
         obs = self.get_obs(info=info)
-        obs["marker_flow_sub_steps"] = self.marker_flow_sub_steps
+        if self.generate_demo:
+            obs["marker_flow_sub_steps"] = self.marker_flow_sub_steps
         reward = self.get_reward(info=info)
         terminated = self.get_terminated(info=info)
         truncated = self.get_truncated(info=info)
@@ -614,10 +617,11 @@ class LongOpenLockSimEnv(gym.Env):
             self.sensor_grasp_center_current = (self.tactile_sensor_1.get_pose()[0] +
                                                 self.tactile_sensor_2.get_pose()[0]) / 2
 
-            sub_info = self.get_info()
-            sub_obs = self.get_obs(info=sub_info)
-            sub_marker_flow = sub_obs["marker_flow"]
-            self.marker_flow_sub_steps.append(sub_marker_flow)
+            if self.generate_demo:
+                sub_info = self.get_info()
+                sub_obs = self.get_obs(info=sub_info)
+                sub_marker_flow = sub_obs["marker_flow"]
+                self.marker_flow_sub_steps.append(sub_marker_flow)
 
             if GUI:
                 self.scene.update_render()
@@ -735,10 +739,11 @@ class LongOpenLockRandPointFlowEnv(LongOpenLockSimEnv):
             [key2_pts.mean(0)[0] - info["lock2_pts"].mean(0)[0], key2_pts.mean(0)[1], key2_pts.mean(0)[2] - 0.03],
             dtype=np.float32) * 200.0
 
-        obs["key1_pts"] = key1_pts
-        obs["key2_pts"] = key2_pts
-        obs["lock1_pts"] = info["lock1_pts"]
-        obs["lock2_pts"] = info["lock2_pts"]
+        if self.generate_demo:
+            obs["key1_pts"] = key1_pts
+            obs["key2_pts"] = key2_pts
+            obs["lock1_pts"] = info["lock1_pts"]
+            obs["lock2_pts"] = info["lock2_pts"]
 
         if self.render_rgb:
             obs["rgb_images"] = np.stack(

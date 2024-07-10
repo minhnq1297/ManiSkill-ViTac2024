@@ -16,8 +16,10 @@ env:
   marker_rotation_range: 0.1
   marker_translation_range: [1, 1]
   marker_pos_shift_range: [0.1, 0.1]
+  generate_demo: True
+
   params:
-    sim_time_step: 0.01
+    sim_time_step: 0.03
     sim_d_hat: 0.1e-3
     sim_kappa: 1e2
     sim_kappa_affine: 1e5

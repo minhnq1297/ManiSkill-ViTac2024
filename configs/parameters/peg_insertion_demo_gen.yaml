@@ -16,9 +16,10 @@ env:
   marker_random_noise: 0.5
   marker_lose_tracking_probability: 0.01
   normalize: False
+  generate_demo: True
 
   params:
-    sim_time_step: 0.01
+    sim_time_step: 0.03
     sim_d_hat: 0.1e-3
     sim_kappa: 1e2
     sim_kappa_affine: 1e5

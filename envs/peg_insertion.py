@@ -81,6 +81,7 @@ class ContinuousInsertionSimEnv(gym.Env):
             params_upper_bound=None,
             device: str = "cuda:0",
             no_render: bool = False,
+            generate_demo: bool = False,
             **kwargs,
     ):
 
@@ -92,6 +93,7 @@ class ContinuousInsertionSimEnv(gym.Env):
         super(ContinuousInsertionSimEnv, self).__init__()
 
         self.no_render = no_render
+        self.generate_demo = generate_demo
         self.step_penalty = step_penalty
         self.final_reward = final_reward
         assert max_action.shape == (3,)
@@ -547,10 +549,11 @@ class ContinuousInsertionSimEnv(gym.Env):
                 if (not state1) or (not state2):
                     self.error_too_large = True
 
-                sub_info = self.get_info()
-                sub_obs = self.get_obs(info=sub_info)
-                sub_marker_flow = sub_obs["marker_flow"]
-                self.marker_flow_sub_steps.append(sub_marker_flow)
+                if self.generate_demo:
+                    sub_info = self.get_info()
+                    sub_obs = self.get_obs(info=sub_info)
+                    sub_marker_flow = sub_obs["marker_flow"]
+                    self.marker_flow_sub_steps.append(sub_marker_flow)
 
                 if GUI:
                     self.scene.update_render()
@@ -634,7 +637,8 @@ class ContinuousInsertionSimEnv(gym.Env):
 
         info = self.get_info()
         obs = self.get_obs(info=info)
-        obs["marker_flow_sub_steps"] = self.marker_flow_sub_steps
+        if self.generate_demo:
+            obs["marker_flow_sub_steps"] = self.marker_flow_sub_steps
         reward = self.get_reward(info=info, obs=obs)
         terminated = self.get_terminated(info=info, obs=obs)
         truncated = self.get_truncated(info=info, obs=obs)
@@ -706,8 +710,9 @@ class ContinuousInsertionSimEnv(gym.Env):
             ).astype(np.float32),
             "gt_offset": np.array(self.current_offset_of_current_episode, dtype=np.float32),
         }
-        peg_transform = self.peg_abd.get_transformation_matrix().cpu().numpy().copy()
-        obs_dict["peg_transform"] = peg_transform
+        if self.generate_demo:
+            peg_transform = self.peg_abd.get_transformation_matrix().cpu().numpy().copy()
+            obs_dict["peg_transform"] = peg_transform
 
         return obs_dict
 
