@@ -112,6 +112,7 @@ def demo_generation(model):
                 if info["is_success"]:
                     collect_result.append([True, ep_len])
                     logger.opt(colors=True).info(f"<green>RESULT: SUCCESS</green>")
+                    action_list.append(np.zeros_like(action))
                     episode_demo_data = EpisodeDemoData(
                         np.array(l_marker_list),
                         np.array(r_marker_list),
