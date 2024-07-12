@@ -104,7 +104,7 @@ class ViTacDemoDataset(torch.utils.data.Dataset):
         cur_step_i = self.n_obs_steps * self.subs_factor
         l_marker_flow = sample["l_marker_flow"][: cur_step_i : self.subs_factor]
         r_marker_flow = sample["r_marker_flow"][: cur_step_i : self.subs_factor]
-        actions = sample["actions"][: cur_step_i : self.subs_factor]
+        actions = sample["actions"][cur_step_i :: self.subs_factor]
         sample = {
             "l_marker_flow": l_marker_flow,
             "r_marker_flow": r_marker_flow,
