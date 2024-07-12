@@ -1,13 +1,20 @@
-from typing import Tuple, Sequence, Dict, Union, Optional, Callable
+import os
+import sys
 import numpy as np
-import math
 import torch
 import torch.nn as nn
+
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 from diffusers.training_utils import EMAModel
 from diffusers.optimization import get_scheduler
-from tqdm.auto import tqdm
 from diffusion_policy.model.diffusion.conditional_unet1d import ConditionalUnet1D
+from tqdm.auto import tqdm
+
+script_path = os.path.dirname(os.path.realpath(__file__))
+repo_path = os.path.join(script_path, "..")
+sys.path.append(script_path)
+sys.path.insert(0, repo_path)
+
 from imitation_learning.data_utils import ViTacDemoDataset
 from solutions.networks import PointNetFeatureExtractor
 from utils.common import save_checkpoint
@@ -16,8 +23,8 @@ from utils.common import save_checkpoint
 DEBUG = 0
 # Hyperparams
 learning_rate = 1e-4
-num_epochs = 6
-batch_size = 64
+num_epochs = 10
+batch_size = 32
 checkpoint_interval = 2
 # Dimensions
 obs_horizon = 2
@@ -31,6 +38,11 @@ action_dim = 3
 noise_pred_net = ConditionalUnet1D(input_dim=action_dim,
                                    global_cond_dim=obs_dim*obs_horizon, cond_predict_scale=True)
 vision_encoder = PointNetFeatureExtractor(dim=4, out_dim=32)
+# Load and freeze pretrained encoder
+vision_encoder.load_state_dict(torch.load("./pretrain_weight/pretrain_peg_insertion/marker_encoder_peg_insertion.zip"))
+for param in vision_encoder.parameters():
+    param.requires_grad = False
+vision_encoder.eval()
 
 
 nets = nn.ModuleDict({
