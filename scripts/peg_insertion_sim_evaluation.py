@@ -125,7 +125,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     key = args.key
 
-    # policy_file = "../pretrain_weight/pretrain_peg_insertion/best_model.zip"
+    #policy_file = "./pretrain_weight/pretrain_peg_insertion/best_model.zip"
     policy_file = "./pretrain_weight/pretrain_peg_insertion/best_model.zip"
     data, params, _ = load_from_zip_file(policy_file)
     model = TD3PolicyForPointFlowEnv(observation_space=data["observation_space"],

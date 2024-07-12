@@ -3,7 +3,7 @@ import os
 import sys
 import time
 from datetime import datetime
-
+import torch
 import numpy as np
 import cv2
 
@@ -217,3 +217,10 @@ def check_whether_samples_generated(folder: str, ids: list, prefix="", suffix=".
             generated = False
             not_generated_list.append(id)
     return generated, not_generated_list
+
+
+# Function to save a checkpoint
+def save_checkpoint(state, filename="checkpoint_peg_model.pth.tar", model_dir="./trained_model"):
+    model_path = os.path.join(model_dir, filename)
+    torch.save(state, model_path)
+    print(f"Checkpoint saved to {model_path}")
