@@ -28,7 +28,6 @@ batch_size = 32
 checkpoint_interval = 2
 # Dimensions
 obs_horizon = 2
-action_horizon = 2
 pred_horizon = 4
 vision_feature_dim = 64
 robot_pose_dim = 0

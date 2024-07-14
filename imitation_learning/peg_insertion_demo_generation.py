@@ -21,7 +21,7 @@ from imitation_learning.peg_insertion_simple_agent import PegInsertionSimpleAgen
 from imitation_learning.data_utils import *
 
 DATA_GEN_CFG_FILE = os.path.join(repo_path, "configs/parameters/peg_insertion_demo_gen.yaml")
-PEG_NUM = 3
+PEG_NUM = 2
 REPEAT_NUM = 1
 
 def demo_generation(model):
@@ -61,7 +61,7 @@ def demo_generation(model):
     max_x_offset = cfg["env"]["peg_x_max_offset"]
     max_y_offset = cfg["env"]["peg_y_max_offset"]
     max_theta_offset = cfg["env"]["peg_theta_max_offset"]
-    num_of_offsets = 30
+    num_of_offsets = 2
     max_offset = np.array([max_x_offset, max_y_offset, max_theta_offset])
     offset_list = -max_offset + 2 * max_offset * np.random.rand(num_of_offsets, 3)
     offset_list = offset_list.tolist()
@@ -91,22 +91,24 @@ def demo_generation(model):
                 while not d:
                     ep_len += 1
                     action = model.predict(o)
+                    action_list.append(action)
                     logger.info(f"Step {ep_len} Action: {action}")
                     o, r, terminated, truncated, info = env.step(action)
                     d = terminated or truncated
 
-                    marker_pos_sub_steps = o["marker_flow_sub_steps"]
-                    for marker_pos_sub_step in marker_pos_sub_steps:
-                        action_list.append(action)
+                    obs_sub_steps = o["obs_sub_steps"]
+                    for obs_sub_step in obs_sub_steps:
+                        action_sub_step = model.predict(obs_sub_step)
+                        action_list.append(action_sub_step)
+                        marker_pos_sub_step = obs_sub_step["marker_flow"]
                         l_marker_pos_sub_step, r_marker_pos_sub_step = marker_pos_sub_step[0], marker_pos_sub_step[1]
                         l_marker_list.append(stack_markers(l_marker_pos_sub_step))
                         r_marker_list.append(stack_markers(r_marker_pos_sub_step))
 
-                    # marker_pos = o["marker_flow"]
-                    # l_marker_pos, r_marker_pos = marker_pos[0], marker_pos[1]
-                    # l_marker_list.append(stack_markers(l_marker_pos))
-                    # r_marker_list.append(stack_markers(r_marker_pos))
-                    # action_list.append(action)
+                    marker_pos = o["marker_flow"]
+                    l_marker_pos, r_marker_pos = marker_pos[0], marker_pos[1]
+                    l_marker_list.append(stack_markers(l_marker_pos))
+                    r_marker_list.append(stack_markers(r_marker_pos))
 
                     if 'gt_offset' in o.keys():
                         logger.info(f"Offset: {o['gt_offset']}")

@@ -91,23 +91,25 @@ def demo_generation(model):
                 while not d:
                     ep_len += 1
                     action = model.predict(o)
+                    action_list.append(action)
                     logger.info(f"Step {ep_len} Action: {action}")
                     o, r, terminated, truncated, info = env.step(action)
                     d = terminated or truncated
                     ep_ret += r
 
-                    marker_pos_sub_steps = o["marker_flow_sub_steps"]
-                    for marker_pos_sub_step in marker_pos_sub_steps:
-                        action_list.append(action)
+                    obs_sub_steps = o["obs_sub_steps"]
+                    for obs_sub_step in obs_sub_steps:
+                        action_sub_step = model.predict(obs_sub_step)
+                        action_list.append(action_sub_step)
+                        marker_pos_sub_step = obs_sub_step["marker_flow"]
                         l_marker_pos_sub_step, r_marker_pos_sub_step = marker_pos_sub_step[0], marker_pos_sub_step[1]
                         l_marker_list.append(stack_markers(l_marker_pos_sub_step))
                         r_marker_list.append(stack_markers(r_marker_pos_sub_step))
 
-                    # marker_pos = o["marker_flow"]
-                    # l_marker_pos, r_marker_pos = marker_pos[0], marker_pos[1]
-                    # l_marker_list.append(stack_markers(l_marker_pos))
-                    # r_marker_list.append(stack_markers(r_marker_pos))
-                    # action_list.append(action)
+                    marker_pos = o["marker_flow"]
+                    l_marker_pos, r_marker_pos = marker_pos[0], marker_pos[1]
+                    l_marker_list.append(stack_markers(l_marker_pos))
+                    r_marker_list.append(stack_markers(r_marker_pos))
 
                 if info["is_success"]:
                     collect_result.append([True, ep_len])
