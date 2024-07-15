@@ -109,19 +109,17 @@ def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizo
                 logger.info(f"Initial offset: {initial_offset_of_current_episode}")
                 d, ep_ret, ep_len = False, 0, 0
                 
-                #TODO: set up the observation buffer here
                 obs_deque = collections.deque([o] * obs_horizon, maxlen=obs_horizon)
                 while not d:
                     # Take deterministic actions at test time (noise_scale=0)
                     ep_len += 1
 
-                    #TODO: adding code here, stack the buffer flow
                     with torch.no_grad():
                         markers = torch.from_numpy(np.stack([obs["marker_flow"] for obs in obs_deque]))
                         markers = markers.to(device=DEVICE)
                         obs_features = observation_to_features(model["visual_encoder"], markers)
                         obs_cond = obs_features.unsqueeze(0).flatten(start_dim=1)
-                        noisy_action = -1 + 2 * torch.randn(
+                        noisy_action = torch.randn(
                             (1, pred_horizon, action_dim), device=DEVICE)
                         naction = noisy_action
 
@@ -153,6 +151,7 @@ def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizo
 
                     #assume now only take 1 action
                     o, r, terminated, truncated, info = env.step(action)
+                    obs_deque.append(o)
                     d = terminated or truncated
                     if 'gt_offset' in o.keys():
                         logger.info(f"Offset: {o['gt_offset']}")
