@@ -3,12 +3,14 @@ import sys
 import numpy as np
 import torch
 import torch.nn as nn
+import wandb
 
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 from diffusers.training_utils import EMAModel
 from diffusers.optimization import get_scheduler
 from diffusion_policy.model.diffusion.conditional_unet1d import ConditionalUnet1D
 from tqdm.auto import tqdm
+from datetime import datetime
 
 script_path = os.path.dirname(os.path.realpath(__file__))
 repo_path = os.path.join(script_path, "..")
@@ -72,7 +74,7 @@ dataset = ViTacDemoDataset(
 dataloader = torch.utils.data.DataLoader(
     dataset,
     batch_size=batch_size,
-    num_workers=4,
+    num_workers=8,
     shuffle=True,
     # accelerate cpu-gpu transfer
     pin_memory=True,
@@ -118,6 +120,17 @@ if DEBUG:
     marker_r_fea = vision_encoder(marker_r)
     marker_fea = torch.cat((marker_l_fea, marker_r_fea), dim=1)
 
+wandb.init(
+    project="dl_lab_mani_vitac",
+    name=f"train_peg_insertion_{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+    config={
+        "num_epochs": num_epochs,
+        "batch_size": batch_size,
+        "learning_rate": learning_rate,
+        "obs_horizon": obs_horizon,
+        "pred_horizon": pred_horizon
+    }
+)
 
 if not DEBUG:
     with tqdm(range(num_epochs), desc='Epoch') as tglobal:
@@ -184,14 +197,21 @@ if not DEBUG:
                     loss_cpu = loss.item()
                     epoch_loss.append(loss_cpu)
                     tepoch.set_postfix(loss=loss_cpu)
-            tglobal.set_postfix(loss=np.mean(epoch_loss))
+            mean_epoch_loss = np.mean(epoch_loss)
+            tglobal.set_postfix(loss=mean_epoch_loss)
+            wandb.log(
+                {
+                    "loss": mean_epoch_loss
+                }
+            )
 
             # Save model checkpoint every checkpoint interval
             if(epoch_idx + 1) % checkpoint_interval == 0:
                 checkpoint = {
                     'epoch': epoch_idx + 1,
                     'noise_pred_net_statedict': nets['noise_pred_net'].state_dict(),
-                    'optimizer_statedict': optimizer.state_dict(),
+                    'visual_encoder_statedict': nets['visual_encoder'].state_dict(),
+                    # 'optimizer_statedict': optimizer.state_dict(),
                 }
                 save_checkpoint(checkpoint)
 

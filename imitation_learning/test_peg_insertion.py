@@ -195,7 +195,8 @@ if __name__ == "__main__":
     noise_pred_net.eval()
 
     # Load and freeze pretrained encoder
-    vision_encoder_state_dict = torch.load("./pretrain_weight/pretrain_peg_insertion/marker_encoder_peg_insertion.zip")
+    # vision_encoder_state_dict = torch.load("./pretrain_weight/pretrain_peg_insertion/marker_encoder_peg_insertion.zip")
+    vision_encoder_state_dict = check_point["visual_encoder_statedict"]
     vision_encoder.load_state_dict(vision_encoder_state_dict)
     vision_encoder.eval()
 
