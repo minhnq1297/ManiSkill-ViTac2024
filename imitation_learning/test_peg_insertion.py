@@ -6,13 +6,11 @@ import torch
 import numpy as np
 import torch.nn as nn
 import ruamel.yaml as yaml
+import spatialmath as sm
 
 from path import Path
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
-from diffusers.training_utils import EMAModel
-from diffusers.optimization import get_scheduler
 from diffusion_policy.model.diffusion.conditional_unet1d import ConditionalUnet1D
-from tqdm.auto import tqdm
 from stable_baselines3.common.utils import set_random_seed
 
 script_path = os.path.dirname(os.path.realpath(__file__))
@@ -22,14 +20,14 @@ sys.path.insert(0, repo_path)
 
 from envs.peg_insertion import ContinuousInsertionSimGymRandomizedPointFLowEnv
 from loguru import logger
-from imitation_learning.data_utils import ViTacDemoDataset
 from solutions.networks import PointNetFeatureExtractor
 from scripts.arguments import parse_params
 from utils.common import get_time, get_average_params
+from imitation_learning.utils import *
 
-EVAL_CFG_FILE = os.path.join(repo_path, "configs/evaluation/peg_insertion_evaluation.yaml")
+EVAL_CFG_FILE = os.path.join(repo_path, "configs/evaluation/peg_insertion_evaluation_imitation_learning.yaml")
 PEG_NUM = 3
-REPEAT_NUM = 2
+REPEAT_NUM = 1
 DEVICE = torch.device('cuda')
 
 
@@ -37,20 +35,35 @@ def observation_to_features(feature_extractor_net, original_obs) -> torch.Tensor
     if original_obs.ndim == 4:
         original_obs = torch.unsqueeze(original_obs, 0)
     batch_num = original_obs.shape[0]
-    # (batch_num, 2 (left_and_right), 2 (no-contact and contact), 128 (marker_num), 2 (u, v))
     feature_extractor_input = torch.cat([original_obs[:, :, 0, ...], original_obs[:, :, 1, ...]], dim=-1)
     feature_extractor_input = torch.cat([feature_extractor_input[:, 0, ...], feature_extractor_input[:, 1, ...]], dim=0)
-    # (batch_num * 2, 128, 4)
-    # l_marker_pos = feature_extractor_input[:, 0, ...]
-    # r_marker_pos = feature_extractor_input[:, 1, ...]
-    # shape: (batch, num_points, 4)
 
     marker_flow_fea = feature_extractor_net(feature_extractor_input)
-    # l_marker_flow_fea = self.feature_extractor_net(l_marker_pos)
-    # r_marker_flow_fea = self.feature_extractor_net(r_marker_pos)  # (batch_num, pointnet_feature_dim)
     marker_flow_fea = torch.cat([marker_flow_fea[:batch_num], marker_flow_fea[batch_num:]], dim=-1)
 
     return marker_flow_fea
+
+def convert_ee_transform(transform):
+    xyz, rpy = transformation_matrix_to_xyz_rpy(transform)
+    ee_x = xyz[0] * 1000.0
+    ee_y = xyz[1] * 1000.0
+    ee_theta = rpy[2] * 180.0 / np.pi
+    return np.array([ee_x, ee_y, ee_theta])
+
+def convert_policy_action(action, current_pose, max_action):
+    current_pose_z = current_pose[2, -1]
+    policy_action_transform = sm.SE3.Rz(theta=action[2], unit="deg", t=np.array([action[0], action[1], current_pose_z]))
+    policy_action_transform = np.asarray(policy_action_transform)
+    rel_xyz, rel_rpy = transformation_matrix_to_xyz_rpy(np.linalg.pinv(current_pose) @ policy_action_transform)
+
+    relative_action_x = rel_xyz[0] * 1000.0
+    relative_action_y = rel_xyz[1] * 1000.0
+    relative_action_theta = rel_rpy[2] * 180.0 / np.pi
+    relative_action = np.array([relative_action_x, relative_action_y, relative_action_theta])
+    relative_action = np.clip(relative_action, -max_action, max_action) / max_action
+
+    return relative_action
+
 
 def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizon, action_horizon, render_rgb):
     exp_start_time = get_time()
@@ -76,6 +89,7 @@ def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizo
 
     if "max_action" in cfg["env"].keys():
         cfg["env"]["max_action"] = np.array(cfg["env"]["max_action"])
+        max_action = cfg["env"]["max_action"]
 
     specified_env_args = copy.deepcopy(cfg["env"])
 
@@ -110,14 +124,20 @@ def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizo
                 d, ep_ret, ep_len = False, 0, 0
                 
                 obs_deque = collections.deque([o] * obs_horizon, maxlen=obs_horizon)
+                initial_ee_transform = o["peg_transform"]
                 while not d:
-                    # Take deterministic actions at test time (noise_scale=0)
-                    ep_len += 1
-
                     with torch.no_grad():
-                        markers = torch.from_numpy(np.stack([obs["marker_flow"] for obs in obs_deque]))
-                        markers = markers.to(device=DEVICE)
+                        markers = np.stack([obs["marker_flow"] for obs in obs_deque])
+                        markers = torch.from_numpy(markers).to(device=DEVICE, dtype=torch.float32)
+
+                        rel_ee_transforms = [np.linalg.pinv(initial_ee_transform) @ obs["peg_transform"] for obs in obs_deque]
+                        ee_poses = np.stack([convert_ee_transform(transform) for transform in rel_ee_transforms])
+                        ee_poses = normalize_data(ee_poses, stats=normalization_ee_poses_stats)
+                        ee_poses = torch.from_numpy(ee_poses).to(device=DEVICE, dtype=torch.float32)
+
                         obs_features = observation_to_features(model["visual_encoder"], markers)
+                        obs_features = torch.cat([obs_features, ee_poses], dim=-1)
+
                         obs_cond = obs_features.unsqueeze(0).flatten(start_dim=1)
                         noisy_action = torch.randn(
                             (1, pred_horizon, action_dim), device=DEVICE)
@@ -138,24 +158,30 @@ def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizo
                                 sample=naction
                             ).prev_sample
 
-                    #TODO: review this again
                     naction = naction.cpu().detach().numpy()
                     naction = naction[0]
+                    action_pred = unnormalize_data(naction, stats=normalization_actions_stats)
+
                     start = obs_horizon - 1
                     end = start + action_horizon
-                    action = naction[start:end,:]
+                    action = action_pred[start:end,:]
                     # (action_horizon, action_dim)
 
-                    # TODO: edit this to denoise process
-                    logger.info(f"Step {ep_len} Action: {action}")
+                    for i in range(len(action)):
+                        action = convert_policy_action(action[0], obs_deque[-1]["peg_transform"], max_action)
+                        o, r, terminated, truncated, info = env.step(action)
+                        obs_deque.append(o)
+                        d = terminated or truncated
+                        ep_ret += r
 
-                    #assume now only take 1 action
-                    o, r, terminated, truncated, info = env.step(action)
-                    obs_deque.append(o)
-                    d = terminated or truncated
-                    if 'gt_offset' in o.keys():
-                        logger.info(f"Offset: {o['gt_offset']}")
-                    ep_ret += r
+                        ep_len += 1
+                        logger.info(f"Step {ep_len} Action: {action}")
+
+                        if 'gt_offset' in o.keys():
+                            logger.info(f"Offset: {o['gt_offset']}")
+                        if d:
+                            break
+
                 if info["is_success"]:
                     test_result.append([True, ep_len])
                     logger.opt(colors=True).info(f"<green>RESULT: SUCCESS</green>")
@@ -180,7 +206,7 @@ if __name__ == "__main__":
     action_horizon = 1
     pred_horizon = 4
     vision_feature_dim = 64
-    robot_pose_dim = 0
+    robot_pose_dim = 3
     obs_dim = vision_feature_dim + robot_pose_dim
     action_dim = 3
     # Network setup
@@ -195,10 +221,15 @@ if __name__ == "__main__":
     noise_pred_net.eval()
 
     # Load and freeze pretrained encoder
-    # vision_encoder_state_dict = torch.load("./pretrain_weight/pretrain_peg_insertion/marker_encoder_peg_insertion.zip")
-    vision_encoder_state_dict = check_point["visual_encoder_statedict"]
+    vision_encoder_state_dict = torch.load("./pretrain_weight/pretrain_peg_insertion/marker_encoder_peg_insertion.zip")
+    # vision_encoder_state_dict = check_point["visual_encoder_statedict"]
     vision_encoder.load_state_dict(vision_encoder_state_dict)
     vision_encoder.eval()
+
+    # Load normalization dictionary
+    normalization_stats = check_point["normalization_stats"]
+    normalization_ee_poses_stats = normalization_stats["ee_poses"]
+    normalization_actions_stats = normalization_stats["actions"]
 
     nets = nn.ModuleDict({
         'visual_encoder': vision_encoder,

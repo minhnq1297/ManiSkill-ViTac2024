@@ -82,6 +82,7 @@ class ContinuousInsertionSimEnv(gym.Env):
             device: str = "cuda:0",
             no_render: bool = False,
             generate_demo: bool = False,
+            use_imitation_learning: bool = False,
             **kwargs,
     ):
 
@@ -94,6 +95,7 @@ class ContinuousInsertionSimEnv(gym.Env):
 
         self.no_render = no_render
         self.generate_demo = generate_demo
+        self.use_imitation_learning = use_imitation_learning
         self.step_penalty = step_penalty
         self.final_reward = final_reward
         assert max_action.shape == (3,)
@@ -697,6 +699,10 @@ class ContinuousInsertionSimEnv(gym.Env):
                     ).astype(np.float32),
                     "gt_offset": np.array(self.current_offset_of_current_episode, dtype=np.float32),
                 }
+                if self.generate_demo or self.use_imitation_learning:
+                    peg_transform = self.peg_abd.get_transformation_matrix().cpu().numpy().copy()
+                    obs_dict["peg_transform"] = peg_transform
+
                 return obs_dict
 
         observation_left_surface_pts, observation_right_surface_pts = self._get_sensor_surface_vertices()
@@ -709,7 +715,7 @@ class ContinuousInsertionSimEnv(gym.Env):
             ).astype(np.float32),
             "gt_offset": np.array(self.current_offset_of_current_episode, dtype=np.float32),
         }
-        if self.generate_demo:
+        if self.generate_demo or self.use_imitation_learning:
             peg_transform = self.peg_abd.get_transformation_matrix().cpu().numpy().copy()
             obs_dict["peg_transform"] = peg_transform
 

@@ -17,22 +17,22 @@ repo_path = os.path.join(script_path, "..")
 sys.path.append(script_path)
 sys.path.insert(0, repo_path)
 
-from imitation_learning.data_utils import ViTacDemoDataset
+from imitation_learning.utils import ManiViTacDemoDataset
 from solutions.networks import PointNetFeatureExtractor
 from utils.common import save_checkpoint
 
 
-DEBUG = 0
+DEBUG = False
 # Hyperparams
 learning_rate = 1e-4
-num_epochs = 10
+num_epochs = 1000
 batch_size = 32
 checkpoint_interval = 2
 # Dimensions
 obs_horizon = 2
 pred_horizon = 4
 vision_feature_dim = 64
-robot_pose_dim = 0
+robot_pose_dim = 3
 obs_dim = vision_feature_dim + robot_pose_dim
 action_dim = 3
 # Network setup
@@ -63,8 +63,8 @@ optimizer = torch.optim.AdamW(
     params=nets.parameters(),
     lr=learning_rate, weight_decay=1e-6)
 
-dataset_path = "peg_insertion_demo-20240711-122025.pkl.gzip"
-dataset = ViTacDemoDataset(
+dataset_path = "./data/peg_insertion_demo-20240719-161315.pkl.gzip"
+dataset = ManiViTacDemoDataset(
     data_path=dataset_path,
     n_obs_steps=obs_horizon,
     n_pred_steps=pred_horizon
@@ -112,6 +112,7 @@ if DEBUG:
     batch = next(iter(dataloader))
     print("batch['l_marker_flow'].shape:", batch['l_marker_flow'].shape)
     print("batch['r_marker_flow'].shape:", batch['r_marker_flow'].shape)
+    print("batch['ee_poses'][:, :obs_horizon].shape", batch['ee_poses'][:, :obs_horizon].shape)
     print("batch['actions'].shape", batch['actions'].shape)
 
     marker_l = torch.flatten(batch['l_marker_flow'], start_dim=0, end_dim=1).to(device)
@@ -120,19 +121,19 @@ if DEBUG:
     marker_r_fea = vision_encoder(marker_r)
     marker_fea = torch.cat((marker_l_fea, marker_r_fea), dim=1)
 
-wandb.init(
-    project="dl_lab_mani_vitac",
-    name=f"train_peg_insertion_{datetime.now().strftime('%Y%m%d-%H%M%S')}",
-    config={
-        "num_epochs": num_epochs,
-        "batch_size": batch_size,
-        "learning_rate": learning_rate,
-        "obs_horizon": obs_horizon,
-        "pred_horizon": pred_horizon
-    }
-)
-
 if not DEBUG:
+    wandb.init(
+        project="dl_lab_mani_vitac",
+        name=f"train_peg_insertion_{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+        config={
+            "num_epochs": num_epochs,
+            "batch_size": batch_size,
+            "learning_rate": learning_rate,
+            "obs_horizon": obs_horizon,
+            "pred_horizon": pred_horizon
+        }
+    )
+
     with tqdm(range(num_epochs), desc='Epoch') as tglobal:
         # epoch loop
         for epoch_idx in tglobal:
@@ -144,8 +145,9 @@ if not DEBUG:
                     # device transfer
                     left_markers = nbatch['l_marker_flow'][:, :obs_horizon]
                     right_markers = nbatch['r_marker_flow'][:, :obs_horizon]
+                    ee_poses = nbatch['ee_poses'][:, :obs_horizon].to(device)
                     actions = nbatch['actions'].to(device)
-                    B = actions.shape[0]
+                    B = ee_poses.shape[0]
                     marker_l = torch.flatten(left_markers, start_dim=0, end_dim=1).to(device)
                     marker_r = torch.flatten(right_markers, start_dim=0, end_dim=1).to(device)
                     marker_l_fea = nets['visual_encoder'](marker_l)
@@ -157,8 +159,8 @@ if not DEBUG:
                     # (B,obs_horizon,D)
 
                     # concatenate vision feature and low-dim obs
-                    # obs_features = torch.cat([image_features, nagent_pos], dim=-1)
-                    obs_cond = image_features.flatten(start_dim=1).to(device)
+                    obs_features = torch.cat([image_features, ee_poses], dim=-1)
+                    obs_cond = obs_features.flatten(start_dim=1).to(device)
                     # (B, obs_horizon * obs_dim)
 
                     # sample noise to add to actions
@@ -211,6 +213,7 @@ if not DEBUG:
                     'epoch': epoch_idx + 1,
                     'noise_pred_net_statedict': nets['noise_pred_net'].state_dict(),
                     'visual_encoder_statedict': nets['visual_encoder'].state_dict(),
+                    'normalization_stats': dataset.get_normalization_stats(),
                     # 'optimizer_statedict': optimizer.state_dict(),
                 }
                 save_checkpoint(checkpoint)

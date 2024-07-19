@@ -18,7 +18,7 @@ from utils.common import get_time, get_average_params
 from loguru import logger
 
 from imitation_learning.open_lock_simple_agent import OpenLockSimpleAgent
-from imitation_learning.data_utils import *
+from imitation_learning.utils import *
 
 import matplotlib.pyplot as plt
 
@@ -125,7 +125,7 @@ def demo_generation(model):
                     collect_result.append([False, ep_len])
                     logger.opt(colors=True).info(f"<d>RESULT: FAIL</d>")
 
-    store_data(episode_demo_data_list, "open_lock_demo")
+    normalize_and_store_data(episode_demo_data_list, "open_lock_demo")
 
     env.close()
     success_rate = np.sum(np.array([int(v[0]) for v in collect_result])) / (episode_num * KEY_NUM * REPEAT_NUM)

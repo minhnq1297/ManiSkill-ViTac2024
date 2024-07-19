@@ -3,7 +3,7 @@ env:
   step_penalty: 1
   final_reward: 10
   max_action: [2.0, 2.0, 4.0]
-  max_steps: 12
+  max_steps: 8
   z_step_size: 0.125
   peg_hole_path_file: "configs/peg_insertion/3shape_1.5mm.txt"
   peg_x_max_offset: 5.0
