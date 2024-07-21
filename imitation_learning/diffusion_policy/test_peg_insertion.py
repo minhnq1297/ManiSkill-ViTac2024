@@ -3,23 +3,24 @@ import sys
 import copy
 import collections
 import torch
+import argparse
 import numpy as np
 import torch.nn as nn
 import ruamel.yaml as yaml
 import spatialmath as sm
 
 from path import Path
+from loguru import logger
 from diffusers.schedulers.scheduling_ddpm import DDPMScheduler
 from diffusion_policy.model.diffusion.conditional_unet1d import ConditionalUnet1D
 from stable_baselines3.common.utils import set_random_seed
 
 script_path = os.path.dirname(os.path.realpath(__file__))
-repo_path = os.path.join(script_path, "..")
+repo_path = os.path.join(script_path, "../..")
 sys.path.append(script_path)
 sys.path.insert(0, repo_path)
 
 from envs.peg_insertion import ContinuousInsertionSimGymRandomizedPointFLowEnv
-from loguru import logger
 from solutions.networks import PointNetFeatureExtractor
 from scripts.arguments import parse_params
 from utils.common import get_time, get_average_params
@@ -64,8 +65,8 @@ def convert_policy_action(action, current_pose, max_action):
 
     return relative_action
 
-
-def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizon, action_horizon, render_rgb):
+def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizon, action_horizon,
+                    normalization_ee_poses_stats, normalization_actions_stats, render_rgb):
     exp_start_time = get_time()
     exp_name = f"peg_insertion_{exp_start_time}"
     log_dir = Path(os.path.join(repo_path, f"eval_log/{exp_name}"))
@@ -122,7 +123,7 @@ def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizo
                 initial_offset_of_current_episode = o["gt_offset"]
                 logger.info(f"Initial offset: {initial_offset_of_current_episode}")
                 d, ep_ret, ep_len = False, 0, 0
-                
+
                 obs_deque = collections.deque([o] * obs_horizon, maxlen=obs_horizon)
                 initial_ee_transform = o["peg_transform"]
                 while not d:
@@ -164,11 +165,11 @@ def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizo
 
                     start = obs_horizon - 1
                     end = start + action_horizon
-                    action = action_pred[start:end,:]
+                    action_pred = action_pred[start:end,:]
                     # (action_horizon, action_dim)
 
-                    for i in range(len(action)):
-                        action = convert_policy_action(action[0], obs_deque[-1]["peg_transform"], max_action)
+                    for i in range(len(action_pred)):
+                        action = convert_policy_action(action_pred[i], np.linalg.pinv(initial_ee_transform) @ obs_deque[-1]["peg_transform"], max_action)
                         o, r, terminated, truncated, info = env.step(action)
                         obs_deque.append(o)
                         d = terminated or truncated
@@ -201,6 +202,13 @@ def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizo
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--use_pretrained_encoder", type=bool, required=True, default=True, help="Using pretrained encoder")
+    parser.add_argument("--trained_model_path", type=str, required=True, help="Path to trained model")
+    args = parser.parse_args()
+    model_path = args.trained_model_path
+    use_pretrained_encoder = args.use_pretrained_encoder
+
     # Dimensions
     obs_horizon = 2
     action_horizon = 1
@@ -214,15 +222,17 @@ if __name__ == "__main__":
                                     global_cond_dim=obs_dim*obs_horizon, cond_predict_scale=True)
     vision_encoder = PointNetFeatureExtractor(dim=4, out_dim=32)
     # Load checkpoint
-    check_point = torch.load("./trained_model/checkpoint_peg_model.pth.tar")
+    check_point = torch.load(model_path)
     # Load and freeze trained Diffusion network
     noise_pred_net_state_dict = check_point["noise_pred_net_statedict"]
     noise_pred_net.load_state_dict(noise_pred_net_state_dict)
     noise_pred_net.eval()
 
     # Load and freeze pretrained encoder
-    vision_encoder_state_dict = torch.load("./pretrain_weight/pretrain_peg_insertion/marker_encoder_peg_insertion.zip")
-    # vision_encoder_state_dict = check_point["visual_encoder_statedict"]
+    if use_pretrained_encoder:
+        vision_encoder_state_dict = torch.load("./pretrain_weight/pretrain_peg_insertion/marker_encoder_peg_insertion.zip")
+    else:
+        vision_encoder_state_dict = check_point["visual_encoder_statedict"]
     vision_encoder.load_state_dict(vision_encoder_state_dict)
     vision_encoder.eval()
 
@@ -252,5 +262,6 @@ if __name__ == "__main__":
     )
     noise_scheduler.set_timesteps(num_diffusion_iters)
 
-    evaluate_policy(nets, noise_scheduler, action_dim, pred_horizon, obs_horizon, action_horizon, False)
+    evaluate_policy(nets, noise_scheduler, action_dim, pred_horizon, obs_horizon, action_horizon,
+                    normalization_ee_poses_stats, normalization_actions_stats, False)
 

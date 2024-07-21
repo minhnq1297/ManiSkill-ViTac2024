@@ -220,7 +220,7 @@ def check_whether_samples_generated(folder: str, ids: list, prefix="", suffix=".
 
 
 # Function to save a checkpoint
-def save_checkpoint(state, filename="checkpoint_peg_model.pth.tar", model_dir="./trained_model"):
+def save_checkpoint(state, filename, model_dir="./trained_model"):
     if not os.path.exists(model_dir):
         os.mkdir(model_dir)
     model_path = os.path.join(model_dir, filename)

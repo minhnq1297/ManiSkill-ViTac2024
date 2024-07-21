@@ -1,12 +1,13 @@
 import copy
 import os
 import sys
+import argparse
 import numpy as np
 import ruamel.yaml as yaml
 from loguru import logger
 
 script_path = os.path.dirname(os.path.realpath(__file__))
-repo_path = os.path.join(script_path, "..")
+repo_path = os.path.join(script_path, "../..")
 sys.path.append(script_path)
 sys.path.insert(0, repo_path)
 
@@ -17,15 +18,14 @@ from stable_baselines3.common.utils import set_random_seed
 from utils.common import get_time, get_average_params
 from loguru import logger
 
-from imitation_learning.peg_insertion_simple_agent import PegInsertionSimpleAgent
+from imitation_learning.data_generation.peg_insertion_simple_agent import PegInsertionSimpleAgent
 from imitation_learning.utils import *
 
 DATA_GEN_CFG_FILE = os.path.join(repo_path, "configs/parameters/peg_insertion_demo_gen.yaml")
 PEG_NUM = 3
 REPEAT_NUM = 1
-NUM_OF_OFFSETS = 10
 
-def demo_generation(model):
+def demo_generation(model, num_of_offsets):
     logger.remove()
     logger.add(sys.stderr, format="{time:YYYY-MM-DD HH:mm:ss} {level} {message}", level="INFO")
 
@@ -55,7 +55,6 @@ def demo_generation(model):
         }
     )
 
-    # create evaluation environment
     env = ContinuousInsertionSimGymRandomizedPointFLowEnv(**specified_env_args)
     set_random_seed(0)
 
@@ -65,7 +64,7 @@ def demo_generation(model):
     max_theta_offset = cfg["env"]["peg_theta_max_offset"]
     max_offset = np.array([max_x_offset, max_y_offset, max_theta_offset])
 
-    offset_list = -max_offset + 2 * max_offset * np.random.rand(NUM_OF_OFFSETS, 3)
+    offset_list = -max_offset + 2 * max_offset * np.random.rand(num_of_offsets, 3)
     offset_list = offset_list.tolist()
 
     episode_num = len(offset_list)
@@ -101,16 +100,16 @@ def demo_generation(model):
                     o, r, terminated, truncated, info = env.step(action)
                     d = terminated or truncated
 
-                    obs_sub_steps = o["obs_sub_steps"]
-                    for obs_sub_step in obs_sub_steps:
-                        action_sub_step = model.predict(obs_sub_step)
-                        action_list.append(action_sub_step)
-                        peg_transform_sub_step = obs_sub_step["peg_transform"]
-                        peg_transform_list.append(peg_transform_sub_step)
-                        marker_pos_sub_step = obs_sub_step["marker_flow"]
-                        l_marker_pos_sub_step, r_marker_pos_sub_step = marker_pos_sub_step[0], marker_pos_sub_step[1]
-                        l_marker_list.append(stack_markers(l_marker_pos_sub_step))
-                        r_marker_list.append(stack_markers(r_marker_pos_sub_step))
+                    # obs_sub_steps = o["obs_sub_steps"]
+                    # for obs_sub_step in obs_sub_steps:
+                    #     action_sub_step = model.predict(obs_sub_step)
+                    #     action_list.append(action_sub_step)
+                    #     peg_transform_sub_step = obs_sub_step["peg_transform"]
+                    #     peg_transform_list.append(peg_transform_sub_step)
+                    #     marker_pos_sub_step = obs_sub_step["marker_flow"]
+                    #     l_marker_pos_sub_step, r_marker_pos_sub_step = marker_pos_sub_step[0], marker_pos_sub_step[1]
+                    #     l_marker_list.append(stack_markers(l_marker_pos_sub_step))
+                    #     r_marker_list.append(stack_markers(r_marker_pos_sub_step))
 
                     peg_transform = o["peg_transform"]
                     peg_transform_list.append(peg_transform)
@@ -200,5 +199,10 @@ def preprocessing_episode_data(l_marker_list, r_marker_list, peg_transform_list,
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--num_of_offsets", type=int, required=False, default=1000, help="Number of peg offsets")
+    args = parser.parse_args()
+    num_of_offsets = args.num_of_offsets
+
     model = PegInsertionSimpleAgent(1.5, 1.5, 1.0)
-    demo_generation(model)
+    demo_generation(model, num_of_offsets)

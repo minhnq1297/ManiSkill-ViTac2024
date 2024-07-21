@@ -1,12 +1,13 @@
 import copy
 import os
 import sys
+import argparse
 import numpy as np
 import ruamel.yaml as yaml
 from loguru import logger
 
 script_path = os.path.dirname(os.path.realpath(__file__))
-repo_path = os.path.join(script_path, "..")
+repo_path = os.path.join(script_path, "../..")
 sys.path.append(script_path)
 sys.path.insert(0, repo_path)
 
@@ -17,16 +18,16 @@ from stable_baselines3.common.utils import set_random_seed
 from utils.common import get_time, get_average_params
 from loguru import logger
 
-from imitation_learning.open_lock_simple_agent import OpenLockSimpleAgent
+from imitation_learning.data_generation.open_lock_simple_agent import OpenLockSimpleAgent
 from imitation_learning.utils import *
 
 import matplotlib.pyplot as plt
 
 EVAL_CFG_FILE = os.path.join(repo_path, "configs/parameters/long_open_lock_demo_gen.yaml")
-KEY_NUM = 2
+KEY_NUM = 3
 REPEAT_NUM = 1
 
-def demo_generation(model):
+def demo_generation(model, num_of_offsets):
     logger.remove()
     logger.add(sys.stderr, format="{time:YYYY-MM-DD HH:mm:ss} {level} {message}", level="INFO")
 
@@ -44,7 +45,8 @@ def demo_generation(model):
 
     if "max_action" in cfg["env"].keys():
         cfg["env"]["max_action"] = np.array(cfg["env"]["max_action"])
-        model.set_max_action(cfg["env"]["max_action"])
+        max_action = cfg["env"]["max_action"]
+        model.set_max_action(max_action)
 
     specified_env_args = copy.deepcopy(cfg["env"])
 
@@ -55,15 +57,12 @@ def demo_generation(model):
         }
     )
 
-    # create evaluation environment
     env = LongOpenLockRandPointFlowEnv(**specified_env_args)
     set_random_seed(0)
-
 
     max_key_x_offset = cfg["env"]["key_x_max_offset"]
     max_key_y_offset = cfg["env"]["key_y_max_offset"]
     max_key_z_offset = cfg["env"]["key_z_max_offset"]
-    num_of_offsets = 3
     max_key_offset = np.array([max_key_x_offset, max_key_y_offset, max_key_z_offset])
     offset_list = max_key_offset * np.random.rand(num_of_offsets, 3)
     offset_list = offset_list.tolist()
@@ -80,8 +79,11 @@ def demo_generation(model):
 
                 l_marker_list = []
                 r_marker_list = []
+                key_transform_list = []
                 action_list = []
 
+                key_transform = o["key_transform"]
+                key_transform_list.append(key_transform)
                 marker_pos = o["marker_flow"]
                 l_marker_pos, r_marker_pos = marker_pos[0], marker_pos[1]
                 l_marker_list.append(stack_markers(l_marker_pos))
@@ -97,15 +99,17 @@ def demo_generation(model):
                     d = terminated or truncated
                     ep_ret += r
 
-                    obs_sub_steps = o["obs_sub_steps"]
-                    for obs_sub_step in obs_sub_steps:
-                        action_sub_step = model.predict(obs_sub_step)
-                        action_list.append(action_sub_step)
-                        marker_pos_sub_step = obs_sub_step["marker_flow"]
-                        l_marker_pos_sub_step, r_marker_pos_sub_step = marker_pos_sub_step[0], marker_pos_sub_step[1]
-                        l_marker_list.append(stack_markers(l_marker_pos_sub_step))
-                        r_marker_list.append(stack_markers(r_marker_pos_sub_step))
+                    # obs_sub_steps = o["obs_sub_steps"]
+                    # for obs_sub_step in obs_sub_steps:
+                    #     action_sub_step = model.predict(obs_sub_step)
+                    #     action_list.append(action_sub_step)
+                    #     marker_pos_sub_step = obs_sub_step["marker_flow"]
+                    #     l_marker_pos_sub_step, r_marker_pos_sub_step = marker_pos_sub_step[0], marker_pos_sub_step[1]
+                    #     l_marker_list.append(stack_markers(l_marker_pos_sub_step))
+                    #     r_marker_list.append(stack_markers(r_marker_pos_sub_step))
 
+                    key_transform = o["key_transform"]
+                    key_transform_list.append(key_transform)
                     marker_pos = o["marker_flow"]
                     l_marker_pos, r_marker_pos = marker_pos[0], marker_pos[1]
                     l_marker_list.append(stack_markers(l_marker_pos))
@@ -115,11 +119,8 @@ def demo_generation(model):
                     collect_result.append([True, ep_len])
                     logger.opt(colors=True).info(f"<green>RESULT: SUCCESS</green>")
                     action_list.append(np.zeros_like(action))
-                    episode_demo_data = EpisodeDemoData(
-                        np.array(l_marker_list),
-                        np.array(r_marker_list),
-                        np.array(action_list)
-                    )
+                    episode_demo_data = preprocessing_episode_data(l_marker_list, r_marker_list,
+                                                                   key_transform_list, action_list, max_action)
                     episode_demo_data_list.append(episode_demo_data)
                 else:
                     collect_result.append([False, ep_len])
@@ -138,8 +139,49 @@ def demo_generation(model):
         logger.info(f"#AVG_STEP: NA")
 
 
+def preprocessing_episode_data(l_marker_list, r_marker_list, key_transform_list, action_list, max_action):
+    # Convert action back to normal value in mm
+    action_value_list = [action_percentage_to_value(action, max_action) for action in action_list]
+
+    # We always consider the first transform of the key as the origin for others
+    # Convert transform w.r.t the first key_transform
+    converted_key_transform_list = [np.linalg.pinv(key_transform_list[0]) @ key_transform for key_transform in key_transform_list]
+
+    key_pose_list = []
+    action_pose_list = []
+    # Convert list of transform matrices and actions to list of (x, y, z)
+    for key_transform, action in zip(converted_key_transform_list, action_value_list):
+        # Get x, y, z of key in the frame of the first key pose and convert to mm
+        key_xyz = key_transform[0:3, -1] * 1000.0
+
+        # Convert action to x, y, z in the frame of the first key pose
+        action += key_xyz
+
+        key_pose_list.append(key_xyz)
+        action_pose_list.append(action)
+
+    # Store to EpisodeDemoData
+    ee_init_world_pose = key_transform_list[0][0:3, -1]
+    episode_demo_data = EpisodeDemoData(
+        l_marker_flow=np.array(l_marker_list),
+        r_marker_flow=np.array(r_marker_list),
+        ee_poses=np.array(key_pose_list),
+        actions=np.array(action_pose_list),
+        ee_init_world_pose=ee_init_world_pose,
+        actions_relative=np.array(action_value_list),
+        max_action_relative=np.array(max_action)
+    )
+
+    return episode_demo_data
+
+
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--num_of_offsets", type=int, required=False, default=1000, help="Number of key offsets")
+    args = parser.parse_args()
+    num_of_offsets = args.num_of_offsets
+
     model = OpenLockSimpleAgent(0.7, 0.7, 0.5)
-    demo_generation(model)
+    demo_generation(model, num_of_offsets)
 

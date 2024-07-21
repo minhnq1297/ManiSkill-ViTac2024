@@ -10,3 +10,6 @@ tactile_sim.egg-info
 /envs/saved_images/
 /train_scripts/data
 /wandb/
+/eval_log/
+/data/
+/trained_model/

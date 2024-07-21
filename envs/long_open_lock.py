@@ -70,12 +70,14 @@ class LongOpenLockSimEnv(gym.Env):
             device: str = "cuda:0",
             no_render: bool = False,
             generate_demo: bool = False,
+            use_imitation_learning: bool = False,
             **kwargs
     ):
         super(LongOpenLockSimEnv, self).__init__()
 
         self.no_render = no_render
         self.generate_demo = generate_demo
+        self.use_imitation_learning = use_imitation_learning
         self.index = None
         self.step_penalty = step_penalty
         self.final_reward = final_reward
@@ -738,11 +740,13 @@ class LongOpenLockRandPointFlowEnv(LongOpenLockSimEnv):
             [key2_pts.mean(0)[0] - info["lock2_pts"].mean(0)[0], key2_pts.mean(0)[1], key2_pts.mean(0)[2] - 0.03],
             dtype=np.float32) * 200.0
 
-        if self.generate_demo:
+        if self.generate_demo or self.use_imitation_learning:
             obs["key1_pts"] = key1_pts
             obs["key2_pts"] = key2_pts
             obs["lock1_pts"] = info["lock1_pts"]
             obs["lock2_pts"] = info["lock2_pts"]
+            key_transform = self.key_abd.get_transformation_matrix().cpu().numpy().copy()
+            obs["key_transform"] =  key_transform
 
         if self.render_rgb:
             obs["rgb_images"] = np.stack(

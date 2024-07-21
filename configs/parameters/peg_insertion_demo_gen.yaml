@@ -19,7 +19,7 @@ env:
   generate_demo: True
 
   params:
-    sim_time_step: 0.03
+    sim_time_step: 0.05
     sim_d_hat: 0.1e-3
     sim_kappa: 1e2
     sim_kappa_affine: 1e5
