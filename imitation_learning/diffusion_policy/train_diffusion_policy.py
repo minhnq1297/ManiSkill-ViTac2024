@@ -27,9 +27,14 @@ if __name__ == "__main__":
     parser.add_argument("--task_name", type=str, required=True, help="Task names: peg_insertion or open_lock")
     parser.add_argument("--train_data_path", type=str, required=True, help="Path to training data")
     parser.add_argument("--use_pretrained_encoder", type=bool, required=False, default=True, help="Using pretrained encoder")
+
+    parser.add_argument("--obs_horizon", type=int, required=True, help="Observation horizon")
+    parser.add_argument("--pred_horizon", type=int, required=False, default=8, help="Prediction horizion")
+
     parser.add_argument("--learning_rate", type=float, required=False, default=1e-4, help="Learning rate")
     parser.add_argument("--n_epoch", type=int, required=False, default=1000, help="Number of epochs")
-    parser.add_argument("--batch_size", type=int, required=False, default=32, help="Batch size")
+    parser.add_argument("--batch_size", type=int, required=False, default=64, help="Batch size")
+
     parser.add_argument("--use_wandb", type=bool, required=False, default=False, help="Logging to wandb")
 
     args = parser.parse_args()
@@ -47,8 +52,8 @@ if __name__ == "__main__":
     checkpoint_interval = 2
 
     # Dimensions
-    obs_horizon = 2
-    pred_horizon = 4
+    obs_horizon = args.obs_horizon
+    pred_horizon = args.pred_horizon
     vision_feature_dim = 64
     robot_pose_dim = 3
     obs_dim = vision_feature_dim + robot_pose_dim
@@ -145,10 +150,11 @@ if __name__ == "__main__":
         marker_fea = torch.cat((marker_l_fea, marker_r_fea), dim=1)
 
     if not DEBUG:
+        start_time= datetime.now().strftime("%Y%m%d-%H%M%S")
         if use_wandb:
             wandb.init(
                 project="dl_lab_mani_vitac",
-                name=f"train_diffusion_policy_{task_name}_{datetime.now().strftime('%Y%m%d-%H%M%S')}",
+                name=f"train_diffusion_policy_{task_name}_{start_time}",
                 config={
                     "num_epochs": num_epochs,
                     "batch_size": batch_size,
@@ -250,7 +256,7 @@ if __name__ == "__main__":
                             # 'optimizer_statedict': optimizer.state_dict(),
                         }
 
-                    save_checkpoint(checkpoint, filename=f"checkpoint_{task_name}_model.pth.tar")
+                    save_checkpoint(checkpoint, filename=f"checkpoint_{task_name}_model_{start_time}.pth.tar")
 
 
         print('Finished Training')

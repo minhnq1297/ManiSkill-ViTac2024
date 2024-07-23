@@ -151,31 +151,30 @@ def preprocessing_episode_data(l_marker_list, r_marker_list, peg_transform_list,
 
     # We always consider the first transform of the peg as the origin for others
     # Convert transform w.r.t the first peg_transform
-    converted_peg_transform_list = [np.linalg.pinv(peg_transform_list[0]) @ peg_transform for peg_transform in peg_transform_list]
+    # converted_peg_transform_list = [np.linalg.pinv(peg_transform_list[0]) @ peg_transform for peg_transform in peg_transform_list]
 
     peg_pose_list = []
     action_pose_list = []
-    # Convert list of transform matrices and actions to list of (x, y, theta)
-    for peg_transform, action in zip(converted_peg_transform_list, action_value_list):
-        # Get x, y, theta of peg in the frame of the first peg pose
-        peg_xyz, peg_rpy = transformation_matrix_to_xyz_rpy(peg_transform)
-        # Convert peg positions to mm
-        peg_x = peg_xyz[0] * 1000.0
-        peg_y = peg_xyz[1] * 1000.0
-        peg_theta = peg_rpy[-1]
+    
+    for peg_transform, action in zip(peg_transform_list, action_value_list):
+        # Convert to first peg_transform frame
+        converted_peg_transform = np.linalg.pinv(peg_transform_list[0]) @ peg_transform
+        converted_peg_xyz, converted_peg_rpy = transformation_matrix_to_xyz_rpy(converted_peg_transform)
+        converted_peg_x = converted_peg_xyz[0] * 1000.0
+        converted_peg_y = converted_peg_xyz[1] * 1000.0
+        converted_peg_theta = converted_peg_rpy[-1] * 180.0 / np.pi
+        peg_pose_list.append(np.array([converted_peg_x, converted_peg_y, converted_peg_theta]))
 
-        # Convert action to x, y, theta in the frame of the first peg pose
-        action_x = action[0] * np.cos(peg_theta) - action[1] * np.sin(peg_theta)
-        action_y = action[0] * np.sin(peg_theta) + action[1] * np.cos(peg_theta)
-        action_theta = action[2]
+        peg_xyz, _ = transformation_matrix_to_xyz_rpy(peg_transform)
 
-        action_x += peg_x
-        action_y += peg_y
-        # Convert peg orientation to degree
-        peg_theta = peg_theta * 180.0 / np.pi
-        action_theta += peg_theta
+        rel_action = sm.SE3.Rz(action[2], unit="deg", t=np.array([action[0]/ 1000.0, action[1] / 1000.0, peg_xyz[-1]]))
+        action_transform = peg_transform @ np.asarray(rel_action)
+        action_transform = np.linalg.pinv(peg_transform_list[0]) @ action_transform
 
-        peg_pose_list.append(np.array([peg_x, peg_y, peg_theta]))
+        action_xyz, action_rpy = transformation_matrix_to_xyz_rpy(action_transform)
+        action_x = action_xyz[0] * 1000.0
+        action_y = action_xyz[1] * 1000.0
+        action_theta = action_rpy[-1] * 180.0 / np.pi
         action_pose_list.append(np.array([action_x, action_y, action_theta]))
 
     # Store to EpisodeDemoData

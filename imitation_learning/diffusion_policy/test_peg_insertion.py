@@ -53,7 +53,7 @@ def convert_ee_transform(transform):
 
 def convert_policy_action(action, current_pose, max_action):
     current_pose_z = current_pose[2, -1]
-    policy_action_transform = sm.SE3.Rz(theta=action[2], unit="deg", t=np.array([action[0], action[1], current_pose_z]))
+    policy_action_transform = sm.SE3.Rz(theta=action[2], unit="deg", t=np.array([action[0] / 1000.0, action[1] / 1000.0, current_pose_z]))
     policy_action_transform = np.asarray(policy_action_transform)
     rel_xyz, rel_rpy = transformation_matrix_to_xyz_rpy(np.linalg.pinv(current_pose) @ policy_action_transform)
 
