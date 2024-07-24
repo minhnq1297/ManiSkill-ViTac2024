@@ -205,14 +205,20 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--use_pretrained_encoder", type=bool, required=True, default=True, help="Using pretrained encoder")
     parser.add_argument("--trained_model_path", type=str, required=True, help="Path to trained model")
+
+    parser.add_argument("--obs_horizon", type=int, required=True, help="Observation horizon")
+    parser.add_argument("--action_horizon", type=int, required=True, help="Action horizion")
+    parser.add_argument("--pred_horizon", type=int, required=True, help="Prediction horizion")
+
     args = parser.parse_args()
     model_path = args.trained_model_path
     use_pretrained_encoder = args.use_pretrained_encoder
 
     # Dimensions
-    obs_horizon = 2
-    action_horizon = 1
-    pred_horizon = 4
+    obs_horizon = args.obs_horizon
+    action_horizon = args.action_horizon
+    pred_horizon = args.pred_horizon
+
     vision_feature_dim = 64
     robot_pose_dim = 3
     obs_dim = vision_feature_dim + robot_pose_dim
