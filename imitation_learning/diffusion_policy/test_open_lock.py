@@ -45,19 +45,17 @@ def observation_to_features(feature_extractor_net, original_obs) -> torch.Tensor
     return marker_flow_fea
 
 def convert_ee_transform(transform):
-    # Convert from m to mm to feed to the model
-    ee_xyz = transform[0:3, -1] * 1000.0
+    ee_xyz = transform[0:3, -1]
     return ee_xyz
 
 def convert_policy_action(action, current_pose, max_action):
-    # Action in mm, convert to m because current_pose is in m
-    policy_action_transform = sm.SE3.Trans(action / 1000.0)
+    policy_action_transform = sm.SE3.Trans(action)
     policy_action_transform = np.asarray(policy_action_transform)
 
     # Due to line 611, 612 of envs/long_open_lock.py
     rel_transform = np.linalg.pinv(policy_action_transform) @ current_pose
     # Convert back to mm to feed to the environment
-    relative_action = rel_transform[0:3, -1] * 1000.0
+    relative_action = rel_transform[0:3, -1] * 1e3
     relative_action = np.clip(relative_action, -max_action, max_action) / max_action
 
     return relative_action

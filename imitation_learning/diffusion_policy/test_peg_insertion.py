@@ -46,19 +46,20 @@ def observation_to_features(feature_extractor_net, original_obs) -> torch.Tensor
 
 def convert_ee_transform(transform):
     xyz, rpy = transformation_matrix_to_xyz_rpy(transform)
-    ee_x = xyz[0] * 1000.0
-    ee_y = xyz[1] * 1000.0
-    ee_theta = rpy[2] * 180.0 / np.pi
+    ee_x = xyz[0]
+    ee_y = xyz[1]
+    ee_theta = rpy[2]
     return np.array([ee_x, ee_y, ee_theta])
 
 def convert_policy_action(action, current_pose, max_action):
     current_pose_z = current_pose[2, -1]
-    policy_action_transform = sm.SE3.Rz(theta=action[2], unit="deg", t=np.array([action[0] / 1000.0, action[1] / 1000.0, current_pose_z]))
+    policy_action_transform = sm.SE3.Rz(theta=action[2], t=np.array([action[0], action[1], current_pose_z]))
     policy_action_transform = np.asarray(policy_action_transform)
     rel_xyz, rel_rpy = transformation_matrix_to_xyz_rpy(np.linalg.pinv(current_pose) @ policy_action_transform)
 
-    relative_action_x = rel_xyz[0] * 1000.0
-    relative_action_y = rel_xyz[1] * 1000.0
+    # Convert back to mm and degree to feed to the environment
+    relative_action_x = rel_xyz[0] * 1e3
+    relative_action_y = rel_xyz[1] * 1e3
     relative_action_theta = rel_rpy[2] * 180.0 / np.pi
     relative_action = np.array([relative_action_x, relative_action_y, relative_action_theta])
     relative_action = np.clip(relative_action, -max_action, max_action) / max_action

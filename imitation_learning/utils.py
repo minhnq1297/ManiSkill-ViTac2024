@@ -71,6 +71,7 @@ def normalize_and_store_data(data: List[EpisodeDemoData], file_name, datasets_di
     data_file = os.path.join(datasets_dir, f"{file_name}-{datetime.now().strftime('%Y%m%d-%H%M%S')}.pkl.gzip")
     f = gzip.open(data_file, "wb")
     pickle.dump(data, f)
+    f.close()
 
 
 def action_percentage_to_value(action:np.ndarray, max_action:np.ndarray):

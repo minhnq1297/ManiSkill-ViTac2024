@@ -146,13 +146,12 @@ def demo_generation(model, num_of_offsets):
 
 
 def preprocessing_episode_data(l_marker_list, r_marker_list, peg_transform_list, action_list, max_action):
-    # Convert action back to normal value in mm and degree
-    action_value_list = [action_percentage_to_value(action, max_action) for action in action_list]
+    # Every data is collected in m and radian. Due to normalization, this does not effect the training
+    # Convert action back to normal value in m and radian
+    action_unit_conversion = np.array([1e-3, 1e-3, np.pi / 180.0])
+    action_value_list = [action_percentage_to_value(action, max_action) * action_unit_conversion for action in action_list]
 
     # We always consider the first transform of the peg as the origin for others
-    # Convert transform w.r.t the first peg_transform
-    # converted_peg_transform_list = [np.linalg.pinv(peg_transform_list[0]) @ peg_transform for peg_transform in peg_transform_list]
-
     peg_pose_list = []
     action_pose_list = []
     
@@ -160,29 +159,29 @@ def preprocessing_episode_data(l_marker_list, r_marker_list, peg_transform_list,
         # Convert to first peg_transform frame
         converted_peg_transform = np.linalg.pinv(peg_transform_list[0]) @ peg_transform
         converted_peg_xyz, converted_peg_rpy = transformation_matrix_to_xyz_rpy(converted_peg_transform)
-        converted_peg_x = converted_peg_xyz[0] * 1000.0
-        converted_peg_y = converted_peg_xyz[1] * 1000.0
-        converted_peg_theta = converted_peg_rpy[-1] * 180.0 / np.pi
+        converted_peg_x = converted_peg_xyz[0]
+        converted_peg_y = converted_peg_xyz[1]
+        converted_peg_theta = converted_peg_rpy[-1]
         peg_pose_list.append(np.array([converted_peg_x, converted_peg_y, converted_peg_theta]))
 
         peg_xyz, _ = transformation_matrix_to_xyz_rpy(peg_transform)
 
-        rel_action = sm.SE3.Rz(action[2], unit="deg", t=np.array([action[0]/ 1000.0, action[1] / 1000.0, peg_xyz[-1]]))
+        rel_action = sm.SE3.Rz(action[2], t=np.array([action[0], action[1], peg_xyz[-1]]))
         action_transform = peg_transform @ np.asarray(rel_action)
         action_transform = np.linalg.pinv(peg_transform_list[0]) @ action_transform
 
         action_xyz, action_rpy = transformation_matrix_to_xyz_rpy(action_transform)
-        action_x = action_xyz[0] * 1000.0
-        action_y = action_xyz[1] * 1000.0
-        action_theta = action_rpy[-1] * 180.0 / np.pi
+        action_x = action_xyz[0]
+        action_y = action_xyz[1]
+        action_theta = action_rpy[-1]
         action_pose_list.append(np.array([action_x, action_y, action_theta]))
 
     # Store to EpisodeDemoData
     ee_init_world_xyz, ee_init_world_rpy = transformation_matrix_to_xyz_rpy(peg_transform_list[0])
     ee_init_world_pose = np.array([
-        ee_init_world_xyz[0] * 1000.0,
-        ee_init_world_xyz[1] * 1000.0,
-        ee_init_world_rpy[2] * 180.0 / np.pi
+        ee_init_world_xyz[0],
+        ee_init_world_xyz[1],
+        ee_init_world_rpy[2]
     ])
     episode_demo_data = EpisodeDemoData(
         l_marker_flow=np.array(l_marker_list),
@@ -191,8 +190,34 @@ def preprocessing_episode_data(l_marker_list, r_marker_list, peg_transform_list,
         actions=np.array(action_pose_list),
         ee_init_world_pose=ee_init_world_pose,
         actions_relative=np.array(action_value_list),
-        max_action_relative=np.array(max_action)
+        max_action_relative=np.array(max_action) * action_unit_conversion
     )
+
+    # Visualize the trajectory
+    # import matplotlib.pyplot as plt
+
+    # ee_poses = episode_demo_data.ee_poses
+    # actions = episode_demo_data.actions
+
+    # fig = plt.figure()
+    # ax = fig.add_subplot()
+
+    # ax.scatter(ee_poses[:, 0], ee_poses[:, 1], color="r", label="ee_pose", linewidths=0.01)
+    # ax.scatter(actions[:, 0], actions[:, 1], color="b", label="actions", linewidths=0.01)
+
+    # vector_ee_x = np.cos(ee_poses[:, 2])
+    # vector_ee_y = np.sin(ee_poses[:, 2])
+    # ax.quiver(ee_poses[:, 0], ee_poses[:, 1], vector_ee_x, vector_ee_y, color="r", linewidths=0.01)
+
+    # vector_action_x = np.cos(actions[:, 2])
+    # vector_action_y = np.sin(actions[:, 2])
+    # ax.quiver(actions[:, 0], actions[:, 1], vector_action_x, vector_action_y, color="b", linewidths=0.01)
+    # ax.legend()
+
+    # for i in range(ee_poses.shape[0]):
+    #     ax.text(ee_poses[i, 0], ee_poses[i, 1], str(i))
+    #     ax.text(actions[i, 0], actions[i, 1], str(i))
+    # plt.show()
 
     return episode_demo_data
 

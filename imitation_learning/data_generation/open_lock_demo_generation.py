@@ -140,8 +140,9 @@ def demo_generation(model, num_of_offsets):
 
 
 def preprocessing_episode_data(l_marker_list, r_marker_list, key_transform_list, action_list, max_action):
-    # Convert action back to normal value in mm
-    action_value_list = [action_percentage_to_value(action, max_action) for action in action_list]
+    # Every data is collected in m. Due to normalization, this does not effect the training
+    # Convert action back to normal value in m
+    action_value_list = [action_percentage_to_value(action, max_action) * 1e-3 for action in action_list]
 
     # We always consider the first transform of the key as the origin for others
     # Convert transform w.r.t the first key_transform
@@ -151,11 +152,12 @@ def preprocessing_episode_data(l_marker_list, r_marker_list, key_transform_list,
     action_pose_list = []
     # Convert list of transform matrices and actions to list of (x, y, z)
     for key_transform, action in zip(converted_key_transform_list, action_value_list):
-        # Get x, y, z of key in the frame of the first key pose and convert to mm
-        key_xyz = key_transform[0:3, -1] * 1000.0
+        # Get x, y, z of key in the frame of the first key pose
+        key_xyz = key_transform[0:3, -1]
 
         # Convert action to x, y, z in the frame of the first key pose
-        action += key_xyz
+        # Due to line 611, 612 of envs/long_open_lock.py
+        action = key_xyz - action
 
         key_pose_list.append(key_xyz)
         action_pose_list.append(action)
@@ -169,8 +171,25 @@ def preprocessing_episode_data(l_marker_list, r_marker_list, key_transform_list,
         actions=np.array(action_pose_list),
         ee_init_world_pose=ee_init_world_pose,
         actions_relative=np.array(action_value_list),
-        max_action_relative=np.array(max_action)
+        max_action_relative=np.array(max_action) * 1e-3
     )
+
+    # Visualize the trajectory
+    # import matplotlib.pyplot as plt
+
+    # ee_poses = episode_demo_data.ee_poses
+    # actions = episode_demo_data.actions
+
+    # fig = plt.figure(figsize=(12, 12))
+    # ax = fig.add_subplot(projection='3d')
+
+    # ax.scatter(ee_poses[:, 0], ee_poses[:, 1], ee_poses[:, 2], color="r", label="ee_pose")
+    # ax.scatter(actions[:, 0], actions[:, 1], actions[:, 2], color="b", label="action")
+    # ax.legend()
+    # for i in range(ee_poses.shape[0]):
+    #     ax.text(ee_poses[i, 0], ee_poses[i, 1], ee_poses[i, 2], str(i))
+    #     ax.text(actions[i, 0], actions[i, 1], actions[i, 2], str(i))
+    # plt.show()
 
     return episode_demo_data
 
