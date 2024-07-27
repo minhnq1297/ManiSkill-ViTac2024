@@ -201,6 +201,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
     num_of_offsets = args.num_of_offsets
 
-    model = OpenLockSimpleAgent(0.7, 0.7, 0.5)
+    model = OpenLockSimpleAgent(0.5, 0.5, 0.5)
     demo_generation(model, num_of_offsets)
 

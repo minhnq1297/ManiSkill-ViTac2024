@@ -26,16 +26,17 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--task_name", type=str, required=True, help="Task names: peg_insertion or open_lock")
     parser.add_argument("--train_data_path", type=str, required=True, help="Path to training data")
-    parser.add_argument("--use_pretrained_encoder", type=bool, required=False, default=True, help="Using pretrained encoder")
 
     parser.add_argument("--obs_horizon", type=int, required=True, help="Observation horizon")
-    parser.add_argument("--pred_horizon", type=int, required=False, default=8, help="Prediction horizion")
+    parser.add_argument("--pred_horizon", type=int, required=True, help="Prediction horizion")
 
     parser.add_argument("--learning_rate", type=float, required=False, default=1e-4, help="Learning rate")
     parser.add_argument("--n_epoch", type=int, required=False, default=1000, help="Number of epochs")
     parser.add_argument("--batch_size", type=int, required=False, default=64, help="Batch size")
 
-    parser.add_argument("--use_wandb", type=bool, required=False, default=False, help="Logging to wandb")
+    parser.add_argument("--use_pretrained_encoder", type=int, required=False, default=1, help="Using pretrained encoder")
+    parser.add_argument("--use_ee_pose", type=int, required=False, default=1, help="Including ee_pose in training")
+    parser.add_argument("--use_wandb", type=int, required=False, default=0, help="Logging to wandb")
 
     args = parser.parse_args()
     task_name = args.task_name
@@ -43,6 +44,7 @@ if __name__ == "__main__":
     dataset_path = args.train_data_path
     use_pretrained_encoder = args.use_pretrained_encoder
     use_wandb = args.use_wandb
+    use_ee_pose = args.use_ee_pose
 
     DEBUG = False
     # Hyperparams
@@ -55,7 +57,10 @@ if __name__ == "__main__":
     obs_horizon = args.obs_horizon
     pred_horizon = args.pred_horizon
     vision_feature_dim = 64
-    robot_pose_dim = 3
+    if use_ee_pose:
+        robot_pose_dim = 3
+    else:
+        robot_pose_dim = 0
     obs_dim = vision_feature_dim + robot_pose_dim
     action_dim = 3
     # Network setup
@@ -185,11 +190,12 @@ if __name__ == "__main__":
                         marker_fea = torch.cat((marker_l_fea, marker_r_fea), dim=1)
 
                         # encoder vision features
-                        image_features = marker_fea.reshape((B, obs_horizon, marker_fea.shape[1]))
+                        obs_features = marker_fea.reshape((B, obs_horizon, marker_fea.shape[1]))
                         # (B,obs_horizon,D)
 
                         # concatenate vision feature and low-dim obs
-                        obs_features = torch.cat([image_features, ee_poses], dim=-1)
+                        if use_ee_pose:
+                            obs_features = torch.cat([obs_features, ee_poses], dim=-1)
                         obs_cond = obs_features.flatten(start_dim=1).to(device)
                         # (B, obs_horizon * obs_dim)
 

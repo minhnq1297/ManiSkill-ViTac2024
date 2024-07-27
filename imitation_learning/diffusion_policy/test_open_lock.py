@@ -125,7 +125,8 @@ def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizo
                         ee_poses = torch.from_numpy(ee_poses).to(device=DEVICE, dtype=torch.float32)
 
                         obs_features = observation_to_features(model["visual_encoder"], markers)
-                        obs_features = torch.cat([obs_features, ee_poses], dim=-1)
+                        if use_ee_pose:
+                            obs_features = torch.cat([obs_features, ee_poses], dim=-1)
 
                         obs_cond = obs_features.unsqueeze(0).flatten(start_dim=1)
                         noisy_action = torch.randn(
@@ -191,16 +192,19 @@ def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizo
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--use_pretrained_encoder", type=bool, required=True, default=True, help="Using pretrained encoder")
     parser.add_argument("--trained_model_path", type=str, required=True, help="Path to trained model")
 
     parser.add_argument("--obs_horizon", type=int, required=True, help="Observation horizon")
     parser.add_argument("--action_horizon", type=int, required=True, help="Action horizion")
     parser.add_argument("--pred_horizon", type=int, required=True, help="Prediction horizion")
 
+    parser.add_argument("--use_pretrained_encoder", type=int, required=False, default=1, help="Using pretrained encoder")
+    parser.add_argument("--use_ee_pose", type=int, required=False, default=1, help="Including ee_pose in testing")
+
     args = parser.parse_args()
     model_path = args.trained_model_path
     use_pretrained_encoder = args.use_pretrained_encoder
+    use_ee_pose = args.use_ee_pose
 
     # Dimensions
     obs_horizon = args.obs_horizon
@@ -208,7 +212,10 @@ if __name__ == "__main__":
     pred_horizon = args.pred_horizon
 
     vision_feature_dim = 64
-    robot_pose_dim = 3
+    if use_ee_pose:
+        robot_pose_dim = 3
+    else:
+        robot_pose_dim = 0
     obs_dim = vision_feature_dim + robot_pose_dim
     action_dim = 3
     # Network setup

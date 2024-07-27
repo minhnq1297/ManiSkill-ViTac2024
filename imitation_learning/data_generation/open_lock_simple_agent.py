@@ -43,13 +43,13 @@ class OpenLockSimpleAgent():
         a_x = np.clip(a_x, -self.max_x_action, self.max_x_action) / self.max_x_action
         a_y = self.k_y * key_y_offset
         a_y = np.clip(a_y, -self.max_y_action, self.max_y_action) / self.max_y_action
-        # If the x-y offset stil large, do not move the key along z
         key_x_y_offset = np.sqrt(key_x_offset ** 2 + key_y_offset ** 2)
         if key_x_y_offset < 0.7:
             a_z = self.k_z * (key_z_offset - 0.010 * 1000)
             a_z = np.clip(a_z, -self.max_z_action, self.max_z_action) / self.max_z_action
         else:
-            a_z = 0
+            # If the x-y offset stil large, just move the key along z slightly to get the tactile feedback
+            a_z = 0.3 * (key_z_offset)
 
         return np.array([a_x, a_y, a_z])
 
