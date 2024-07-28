@@ -8,6 +8,7 @@ import numpy as np
 import torch.nn as nn
 import ruamel.yaml as yaml
 import spatialmath as sm
+import matplotlib.pyplot as plt
 
 from path import Path
 from loguru import logger
@@ -31,6 +32,7 @@ KEY_NUM = 4
 REPEAT_NUM = 2
 DEVICE = torch.device('cuda')
 
+VISUALIZE_EPISODE = True
 
 def observation_to_features(feature_extractor_net, original_obs) -> torch.Tensor:
     if original_obs.ndim == 4:
@@ -59,6 +61,19 @@ def convert_policy_action(action, current_pose, max_action):
     relative_action = np.clip(relative_action, -max_action, max_action) / max_action
 
     return relative_action
+
+def visualize_episode_poses_and_actions(ee_poses, actions):
+    # Visualize poses and actions in the frame of the first pose
+    fig = plt.figure(figsize=(12, 12))
+    ax = fig.add_subplot(projection='3d')
+
+    ax.scatter(ee_poses[:, 0], ee_poses[:, 1], ee_poses[:, 2], color="r", label="ee_pose")
+    ax.scatter(actions[:, 0], actions[:, 1], actions[:, 2], color="b", label="action")
+    ax.legend()
+    for i in range(ee_poses.shape[0]):
+        ax.text(ee_poses[i, 0], ee_poses[i, 1], ee_poses[i, 2], str(i))
+        ax.text(actions[i, 0], actions[i, 1], actions[i, 2], str(i))
+    plt.show()
 
 def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizon, action_horizon,
                     normalization_ee_poses_stats, normalization_actions_stats, render_rgb):
@@ -114,6 +129,9 @@ def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizo
 
                 obs_deque = collections.deque([o] * obs_horizon, maxlen=obs_horizon)
                 initial_ee_transform = o["key_transform"]
+
+                visualize_ee_poses = []
+                visualize_actions = []
                 while not d:
                     with torch.no_grad():
                         markers = np.stack([obs["marker_flow"] for obs in obs_deque])
@@ -158,6 +176,12 @@ def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizo
                     # (action_horizon, action_dim)
 
                     for i in range(len(action_pred)):
+                        if VISUALIZE_EPISODE:
+                            visualize_ee_pose = convert_ee_transform(np.linalg.pinv(initial_ee_transform) @ obs_deque[-1]["key_transform"])
+                            visualize_action = action_pred[i]
+                            visualize_ee_poses.append(visualize_ee_pose)
+                            visualize_actions.append(visualize_action)
+
                         action = convert_policy_action(action_pred[i], np.linalg.pinv(initial_ee_transform) @ obs_deque[-1]["key_transform"], max_action)
                         o, r, terminated, truncated, info = env.step(action)
                         obs_deque.append(o)
@@ -170,6 +194,10 @@ def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizo
                         if 'gt_offset' in o.keys():
                             logger.info(f"Offset: {o['gt_offset']}")
                         if d:
+                            if VISUALIZE_EPISODE:
+                                visualize_ee_poses = np.array(visualize_ee_poses)
+                                visualize_actions = np.array(visualize_actions)
+                                visualize_episode_poses_and_actions(visualize_ee_poses, visualize_actions)
                             break
 
                 if info["is_success"]:
