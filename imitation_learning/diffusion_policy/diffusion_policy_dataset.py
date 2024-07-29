@@ -28,29 +28,33 @@ class DiffusionPolicyDataset(torch.utils.data.Dataset):
     def __init__(
         self,
         data_path: str,
-        obs_horizon: int,
-        pred_horizon: int,
-        action_horizon: int,
+        n_obs_steps: int,
+        n_pred_steps: int,
+        subs_factor: int = 1,  # 1 means no subsampling
+        **kwargs,
     ) -> None:
         replay_buffer = SimpleReplayBuffer.create_from_path(data_path)
         data_keys = ["l_marker_flow", "r_marker_flow", "ee_poses", "actions"]
         data_key_first_k = {
-            "l_marker_flow": obs_horizon,
-            "r_marker_flow": obs_horizon,
-            "ee_poses": obs_horizon,
+            "l_marker_flow": n_obs_steps * subs_factor,
+            "r_marker_flow": n_obs_steps * subs_factor,
+            "ee_poses": n_obs_steps * subs_factor
         }
+        """
+        Define sequence_length == n_obs_steps + n_prediction_steps
+        """
         self.sampler = SequenceSampler(
             replay_buffer=replay_buffer,
-            sequence_length=pred_horizon,
-            pad_before=obs_horizon - 1,
-            pad_after=action_horizon - 1,
+            sequence_length=(n_obs_steps + n_pred_steps) * subs_factor - (subs_factor - 1),
+            pad_before=(n_obs_steps - 1) * subs_factor,
+            pad_after=(n_pred_steps - 1) * subs_factor + (subs_factor - 1),
             keys=data_keys,
             key_first_k=data_key_first_k,
         )
         self.normalization_stats = replay_buffer.meta["normalization_stats"]
-        self.obs_horizon = obs_horizon
-        self.pred_horizon = pred_horizon
-        self.action_horizon = action_horizon
+        self.n_obs_steps = n_obs_steps
+        self.n_prediction_steps = n_pred_steps
+        self.subs_factor = subs_factor
         self.rng = np.random.default_rng()
         return
 
@@ -59,10 +63,15 @@ class DiffusionPolicyDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, ...]:
         sample: dict[str, np.ndarray] = self.sampler.sample_sequence(idx)
-        l_marker_flow = sample["l_marker_flow"][:self.obs_horizon, :]
-        r_marker_flow = sample["r_marker_flow"][:self.obs_horizon, :]
-        ee_poses = sample["ee_poses"][:self.obs_horizon, :]
-        actions = sample["actions"]
+        cur_step_i = self.n_obs_steps * self.subs_factor
+        l_marker_flow = sample["l_marker_flow"][: cur_step_i : self.subs_factor]
+        r_marker_flow = sample["r_marker_flow"][: cur_step_i : self.subs_factor]
+        ee_poses = sample["ee_poses"][: cur_step_i : self.subs_factor]
+        # We align data as. See Figure 3a of diffusion policy
+        # O_(t-n_obs - 1), ..., O_(t-1), O_t
+        # A_(t-n_obs - 1), ..., A_(t-1), A_t
+        # actions = sample["actions"][cur_step_i :: self.subs_factor]
+        actions = sample["actions"][cur_step_i-1 : -1 : self.subs_factor]
         sample = {
             "l_marker_flow": l_marker_flow,
             "r_marker_flow": r_marker_flow,

@@ -19,9 +19,8 @@ action_horizon = 1
 
 train_dataset = DiffusionPolicyDataset(
     data_path=dataset_path,
-    obs_horizon=obs_horizon,
-    pred_horizon=pred_horizon,
-    action_horizon=action_horizon
+    n_obs_steps=obs_horizon,
+    n_pred_steps=pred_horizon,
 )
 
 test_data = train_dataset[3]

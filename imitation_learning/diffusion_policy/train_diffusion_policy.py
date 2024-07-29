@@ -29,7 +29,6 @@ if __name__ == "__main__":
 
     parser.add_argument("--obs_horizon", type=int, required=True, help="Observation horizon")
     parser.add_argument("--pred_horizon", type=int, required=True, help="Prediction horizion")
-    parser.add_argument("--action_horizon", type=int, required=True, help="Action horizion")
 
     parser.add_argument("--learning_rate", type=float, required=False, default=1e-4, help="Learning rate")
     parser.add_argument("--n_epoch", type=int, required=False, default=1000, help="Number of epochs")
@@ -57,8 +56,6 @@ if __name__ == "__main__":
     # Dimensions
     obs_horizon = args.obs_horizon
     pred_horizon = args.pred_horizon
-    action_horizon = args.action_horizon
-
     vision_feature_dim = 64
     if use_ee_pose:
         robot_pose_dim = 3
@@ -101,9 +98,8 @@ if __name__ == "__main__":
 
     dataset = DiffusionPolicyDataset(
         data_path=dataset_path,
-        obs_horizon=obs_horizon,
-        pred_horizon=pred_horizon,
-        action_horizon=action_horizon
+        n_obs_steps=obs_horizon,
+        n_pred_steps=pred_horizon
     )
 
     # create dataloader
