@@ -28,8 +28,8 @@ from utils.common import get_time, get_average_params
 from imitation_learning.utils import *
 
 EVAL_CFG_FILE = os.path.join(repo_path, "configs/evaluation/open_lock_evaluation_imitation_learning.yaml")
-KEY_NUM = 4
-REPEAT_NUM = 1
+KEY_NUM = 3
+REPEAT_NUM = 3
 DEVICE = torch.device('cuda')
 
 VISUALIZE_EPISODE = False

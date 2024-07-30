@@ -28,7 +28,7 @@ from imitation_learning.utils import *
 
 EVAL_CFG_FILE = os.path.join(repo_path, "configs/evaluation/peg_insertion_evaluation_imitation_learning.yaml")
 PEG_NUM = 3
-REPEAT_NUM = 1
+REPEAT_NUM = 3
 DEVICE = torch.device('cuda')
 
 
