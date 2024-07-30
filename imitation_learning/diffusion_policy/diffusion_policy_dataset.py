@@ -43,6 +43,7 @@ class DiffusionPolicyDataset(torch.utils.data.Dataset):
         """
         Define sequence_length == n_obs_steps + n_prediction_steps
         """
+        # Important: n_prediction in this code is defined as from the presence to future
         self.sampler = SequenceSampler(
             replay_buffer=replay_buffer,
             sequence_length=(n_obs_steps + n_pred_steps) * subs_factor - (subs_factor - 1),
@@ -70,8 +71,7 @@ class DiffusionPolicyDataset(torch.utils.data.Dataset):
         # We align data as. See Figure 3a of diffusion policy
         # O_(t-n_obs - 1), ..., O_(t-1), O_t
         # A_(t-n_obs - 1), ..., A_(t-1), A_t
-        # actions = sample["actions"][cur_step_i :: self.subs_factor]
-        actions = sample["actions"][cur_step_i-1 : -1 : self.subs_factor]
+        actions = sample["actions"][0 :: self.subs_factor]
         sample = {
             "l_marker_flow": l_marker_flow,
             "r_marker_flow": r_marker_flow,

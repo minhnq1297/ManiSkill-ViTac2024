@@ -105,7 +105,7 @@ def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizo
 
     # create evaluation environment
     env = ContinuousInsertionSimGymRandomizedPointFLowEnv(**specified_env_args)
-    set_random_seed(0)
+    set_random_seed(1000)
 
     offset_list = [[-4.0, -4.0, -8.0], [-4.0, -2.0, 2.0], [-4.0, 1.0, -6.0], [-4.0, 3.0, 6.0], [-3.0, -3.0, -2.0],
                    [-3.0, -1.0, 8.0], [-3.0, 2.0, 2.0], [-2.0, -4.0, -6.0], [-2.0, -2.0, 4.0], [-2.0, 1.0, -2.0],

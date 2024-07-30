@@ -114,7 +114,7 @@ def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizo
 
     # create evaluation environment
     env = LongOpenLockRandPointFlowEnv(**specified_env_args)
-    set_random_seed(0)
+    set_random_seed(1000)
 
     offset_list = [[i * 1.0 / 2, 0, 0] for i in range(20)]
     test_num = len(offset_list)
