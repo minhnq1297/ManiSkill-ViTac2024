@@ -143,7 +143,7 @@ def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizo
 
                         obs_cond = obs_features.unsqueeze(0).flatten(start_dim=1)
                         noisy_action = torch.randn(
-                            (1, pred_horizon, action_dim), device=DEVICE)
+                            (1, obs_horizon + pred_horizon, action_dim), device=DEVICE)
                         naction = noisy_action
 
                         for k in noise_scheduler.timesteps:
@@ -222,6 +222,8 @@ if __name__ == "__main__":
     # Dimensions
     obs_horizon = args.obs_horizon
     action_horizon = args.action_horizon
+    # Important: pred_horizon in this code base is defined as number of predictions made from current observation
+    # This is different from the definition of pred_horizon in the Diffusion Policy paper
     pred_horizon = args.pred_horizon
 
     vision_feature_dim = 64

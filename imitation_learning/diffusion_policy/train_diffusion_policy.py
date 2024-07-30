@@ -55,6 +55,8 @@ if __name__ == "__main__":
 
     # Dimensions
     obs_horizon = args.obs_horizon
+    # Important: pred_horizon in this code base is defined as number of predictions made from current observation
+    # This is different from the definition of pred_horizon in the Diffusion Policy paper
     pred_horizon = args.pred_horizon
     vision_feature_dim = 64
     if use_ee_pose:

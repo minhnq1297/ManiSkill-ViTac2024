@@ -26,12 +26,12 @@ from imitation_learning.utils import *
 
 DEVICE = torch.device('cuda')
 
-model_path = "./trained_model/checkpoint_open_lock_model_20240726-013001.pth.tar"
+model_path = "./trained_model/checkpoint_open_lock_model_20240730-171500.pth.tar"
 use_pretrained_encoder = True
 
 # Dimensions
 obs_horizon = 4
-action_horizon = 2
+action_horizon = 1
 pred_horizon = 4
 
 vision_feature_dim = 64
@@ -103,8 +103,8 @@ print(data_normalization_actions_stats)
 max_action = dataset["meta"]["max_action_relative"]
 
 episode_ends = dataset["meta"]["episode_ends"]
-episode_start_ind = episode_ends[0]
-episode_end_ind = episode_ends[1]
+episode_start_ind = episode_ends[2]
+episode_end_ind = episode_ends[3]
 
 # Take the data out and padding
 def padding_data(data, padding_length):
@@ -146,7 +146,7 @@ for i in range(episode_end_ind - episode_start_ind):
 
     # Denoising to get output
     noisy_action = torch.randn(
-        (1, pred_horizon, action_dim), device=DEVICE)
+        (1, obs_horizon + pred_horizon, action_dim), device=DEVICE)
     naction = noisy_action
 
 
@@ -167,10 +167,10 @@ for i in range(episode_end_ind - episode_start_ind):
 
 
     naction = naction.cpu().detach().numpy()
-    naction = naction[0]
+    naction = naction[0][obs_horizon - 1]
 
     action_pred = unnormalize_data(naction, stats=normalization_actions_stats)
-    action_execute_list.append(action_pred[0])
+    action_execute_list.append(action_pred)
 
 action_execute = np.array(action_execute_list)
 
