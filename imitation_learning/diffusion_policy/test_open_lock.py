@@ -29,10 +29,10 @@ from imitation_learning.utils import *
 
 EVAL_CFG_FILE = os.path.join(repo_path, "configs/evaluation/open_lock_evaluation_imitation_learning.yaml")
 KEY_NUM = 4
-REPEAT_NUM = 2
+REPEAT_NUM = 1
 DEVICE = torch.device('cuda')
 
-VISUALIZE_EPISODE = True
+VISUALIZE_EPISODE = False
 
 def observation_to_features(feature_extractor_net, original_obs) -> torch.Tensor:
     if original_obs.ndim == 4:
@@ -175,14 +175,13 @@ def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizo
                     action_pred = action_pred[start:end,:]
                     # (action_horizon, action_dim)
 
-                    for i in range(len(action_pred)):
+                    for j in range(len(action_pred)):
                         if VISUALIZE_EPISODE:
                             visualize_ee_pose = convert_ee_transform(np.linalg.pinv(initial_ee_transform) @ obs_deque[-1]["key_transform"])
-                            visualize_action = action_pred[i]
+                            visualize_action = action_pred[j]
                             visualize_ee_poses.append(visualize_ee_pose)
                             visualize_actions.append(visualize_action)
-
-                        action = convert_policy_action(action_pred[i], np.linalg.pinv(initial_ee_transform) @ obs_deque[-1]["key_transform"], max_action)
+                        action = convert_policy_action(action_pred[j], np.linalg.pinv(initial_ee_transform) @ obs_deque[-1]["key_transform"], max_action)
                         o, r, terminated, truncated, info = env.step(action)
                         obs_deque.append(o)
                         d = terminated or truncated

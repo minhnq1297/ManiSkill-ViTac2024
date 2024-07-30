@@ -170,8 +170,8 @@ def evaluate_policy(model, noise_scheduler, action_dim, pred_horizon, obs_horizo
                     action_pred = action_pred[start:end,:]
                     # (action_horizon, action_dim)
 
-                    for i in range(len(action_pred)):
-                        action = convert_policy_action(action_pred[i], np.linalg.pinv(initial_ee_transform) @ obs_deque[-1]["peg_transform"], max_action)
+                    for j in range(len(action_pred)):
+                        action = convert_policy_action(action_pred[j], np.linalg.pinv(initial_ee_transform) @ obs_deque[-1]["peg_transform"], max_action)
                         o, r, terminated, truncated, info = env.step(action)
                         obs_deque.append(o)
                         d = terminated or truncated
