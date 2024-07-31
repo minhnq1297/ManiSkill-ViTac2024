@@ -3,16 +3,19 @@
 
 **Table of Contents**
 
-- [Update News](#update)
-- [Installation](#installation)
-- [Training Example](#example)
-- [Submission](#submission)
-- [Leaderboard](#leaderboard)
-- [Real Robot Evaluation](#real-robot-evaluation)
-- [Contact](#contact)
-- [Citation](#citation)
+- [ManiSkill-Vitac Challenge 2024](#maniskill-vitac-challenge-2024)
+  - [Update](#update)
+  - [Installation](#installation)
+  - [Training Example](#training-example)
+  - [Submission](#submission)
+  - [Leaderboard](#leaderboard)
+  - [Real Robot Evaluation](#real-robot-evaluation)
+  - [Contact](#contact)
+  - [Citation](#citation)
 
 ## Update
+**2024/31/07** (from [minhnq1297](https://github.com/minhnq1297)) Add agent with [Diffusion Policy], see [here](./imitation_learning/README.md) for more details.
+
 **2024/03/05** Add the baseline for long_open_lock,  you can run [open_lock_sim_evaluation.py](scripts%2Fopen_lock_sim_evaluation.py) to check it.
 
 **2024/02/27** Add the baseline for peg_insertion,  you can run [peg_insertion_sim_evaluation.py](scripts%2Fpeg_insertion_sim_evaluation.py) to check it.

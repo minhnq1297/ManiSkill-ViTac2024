@@ -29,7 +29,7 @@ from imitation_learning.utils import *
 
 EVAL_CFG_FILE = os.path.join(repo_path, "configs/evaluation/open_lock_evaluation_imitation_learning.yaml")
 KEY_NUM = 3
-REPEAT_NUM = 3
+REPEAT_NUM = 2
 DEVICE = torch.device('cuda')
 
 VISUALIZE_EPISODE = False
